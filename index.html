@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Grammar & Spelling Coach</title>
+  <link rel="stylesheet" href="styles.css" />  
+  <script src="https://cdn.jsdelivr.net/npm/whisper-web@latest/dist/whisper.js"></script>
+
+</head>
+<body>
+
+  <h1 class="title">✏️ Grammar & Spelling Coach</h1>
+  <p class="subtitle">Learn from your mistakes with simple explanations</p>
+
+  <div class="main-card">
+    <button id="grammarBtn" class="small-card green">
+      ✏️ Work on Grammar
+    </button>
+
+    <div class="dictation-section">
+      <h2>🎤 Dictate Your Text</h2>
+
+      <button id="micBtn" class="mic-btn">
+        🎤
+      </button>
+
+      <p id="micStatus" class="status-text">Click the microphone to start dictation</p>
+    </div>
+
+    <label class="input-label">Type or dictate your English text:</label>
+    <textarea id="textInput" placeholder="Start speaking or type here..."></textarea>
+
+    <button id="checkBtn" class="check-btn">
+      ✔ Check My Writing
+    </button>
+    <button id="clearBtn" class="clear-btn">🗑 Clear</button>
+
+
+    <h3 class="results-header">Results</h3>
+    <div id="results" class="results-box"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
