@@ -9,7 +9,7 @@ const clearBtn = document.getElementById("clearBtn");
 const resultsEl = document.getElementById("results");
 
 //--------------------------------------------------
-// HELPER: Get selected tier
+// TIER SELECTION
 //--------------------------------------------------
 function getSelectedTier() {
   const checked = document.querySelector('input[name="tier"]:checked');
@@ -17,7 +17,7 @@ function getSelectedTier() {
 }
 
 //--------------------------------------------------
-// HELPER: Render status / errors
+// RESULTS HANDLING
 //--------------------------------------------------
 function setResultsHtml(html) {
   resultsEl.innerHTML = html;
@@ -31,7 +31,6 @@ function setLoading(isLoading) {
 
 //--------------------------------------------------
 // MARKDOWN → SIMPLE HTML FORMATTER
-// (Bold, line breaks, bullets, sections)
 //--------------------------------------------------
 function formatAIText(text) {
   if (!text) return "<p>Empty response from server.</p>";
@@ -41,19 +40,17 @@ function formatAIText(text) {
   // Bold syntax: **text**
   html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 
-  // Bullet points: - or * at line start → bullet symbol
+  // Replace Markdown-style bullets with dot bullets
   html = html.replace(/^\s*[-*]\s+/gm, "• ");
 
-  // Convert double newlines to paragraphs
+  // Paragraphs: double newlines
   html = html.replace(/\r\n/g, "\n"); // normalize
   html = html.replace(/\n{2,}/g, "</p><p>");
 
-  // Convert remaining single newlines to <br>
+  // Single newlines → <br>
   html = html.replace(/\n/g, "<br>");
 
-  html = `<p>${html}</p>`;
-
-  return html;
+  return `<p>${html}</p>`;
 }
 
 //--------------------------------------------------
@@ -61,19 +58,19 @@ function formatAIText(text) {
 //--------------------------------------------------
 clearBtn.addEventListener("click", () => {
   inputEl.value = "";
-  setResultsHtml(
-    `<p class="placeholder">
+  setResultsHtml(`
+    <p class="placeholder">
       Your feedback will appear here after you press
       <strong>“Check My Writing”</strong>.
-    </p>`
-  );
+    </p>
+  `);
 });
 
 //--------------------------------------------------
-// MAIN: GRAMMAR CHECK (CALLS /api/grammar)
+// CHECK GRAMMAR — CALLS /api/grammar
 //--------------------------------------------------
 checkBtn.addEventListener("click", async () => {
-  const text = (inputEl.value || "").trim();
+  const text = inputEl.value.trim();
 
   if (!text) {
     setResultsHtml("<p>Please type or speak some English first. 😊</p>");
@@ -87,9 +84,7 @@ checkBtn.addEventListener("click", async () => {
   try {
     const response = await fetch("/api/grammar", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, tier }),
     });
 
@@ -105,56 +100,79 @@ checkBtn.addEventListener("click", async () => {
     const data = await response.json();
     const formatted = formatAIText(data.text);
     setResultsHtml(formatted);
+
   } catch (err) {
     console.error("Grammar check failed:", err);
-    setResultsHtml(
-      `<p>Sorry, something went wrong while checking your writing. 🙁</p>
-       <p><small>${err.message}</small></p>`
-    );
+    setResultsHtml(`
+      <p>Sorry, something went wrong while checking your writing. 🙁</p>
+      <p><small>${err.message}</small></p>
+    `);
   } finally {
     setLoading(false);
   }
 });
 
 //--------------------------------------------------
-// WHISPER WEB SPEECH-TO-TEXT
-// (PLACEHOLDER – PASTE YOUR EXISTING WORKING BLOCK)
+// WHISPER IN-BROWSER SPEECH RECOGNITION
 //--------------------------------------------------
 
-/*
-  🔊 IMPORTANT:
-
-  You already have a working Whisper Web (base.en) setup:
-  - Loads at page load
-  - Records audio with MediaRecorder
-  - Sends audio to Whisper
-  - Appends transcription to the textarea
-  - Updates micStatus
-
-  To keep that working, do this:
-
-  1. Find the Whisper code in your OLD app.js
-     (everything related to model loading, MediaRecorder, etc.)
-
-  2. Paste it inside this function, OR below this comment block,
-     making sure it still uses:
-       - micBtn
-       - micStatus
-       - inputEl
-
-  3. If your old code had its own event listeners for micBtn,
-     you can remove the empty listener below or adjust as needed.
-*/
-
-// Optional: a tiny stub so the button does something harmless
+let audioRecorder;
+let audioChunks = [];
+let whisperModel;
 let isRecording = false;
 
-micBtn.addEventListener("click", () => {
-  // If you paste your full Whisper logic, you can delete this stub.
-  if (!isRecording) {
-    micStatus.textContent = "Mic: listening (stub – add Whisper code)";
-  } else {
-    micStatus.textContent = "Mic: off";
+// Load Whisper model on page load
+(async () => {
+  try {
+    micStatus.innerText = "⏳ Loading speech model… (first time only)";
+    whisperModel = await whisper.loadModel("base.en");
+    micStatus.innerText = "🎤 Ready to record";
+  } catch (err) {
+    console.error("Error loading Whisper model:", err);
+    micStatus.innerText = "⚠️ Error loading speech model";
   }
-  isRecording = !isRecording;
-});
+})();
+
+// Handle mic start/stop
+micBtn.onclick = async () => {
+  try {
+    if (!isRecording) {
+      // Start recording
+      audioChunks = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioRecorder = new MediaRecorder(stream);
+
+      audioRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
+
+      audioRecorder.start();
+      isRecording = true;
+      micBtn.innerText = "⏸️";
+      micStatus.innerText = "🎙 Recording… tap to stop";
+
+    } else {
+      // Stop recording
+      audioRecorder.stop();
+      isRecording = false;
+      micBtn.innerText = "🎤";
+      micStatus.innerText = "⏳ Processing speech…";
+
+      // Convert audio to text
+      const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+      const audioArrayBuffer = await audioBlob.arrayBuffer();
+      const result = await whisperModel.transcribe(audioArrayBuffer);
+
+      // Append transcript to textarea with clear spacing
+      const cleanTranscript = result.text.trim();
+      inputEl.value = (inputEl.value + "\n\n" + cleanTranscript).trim();
+
+      micStatus.innerText = "🎤 Ready";
+    }
+  } catch (err) {
+    console.error("Whisper recording error:", err);
+    micStatus.innerText = "⚠️ Mic error";
+  }
+};
