@@ -5,9 +5,8 @@
   <title>ESL Grammar & Speaking Coach</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- Whisper Web (you already had this working) -->
 </head>
+
 <body>
   <div class="app-shell">
     <header class="app-header">
@@ -76,15 +75,14 @@
   </div>
 
   <!-- Whisper Web ESM Loader -->
-<script type="module">
-  import * as whisperModule from "https://cdn.jsdelivr.net/npm/whisper-web@0.0.5/dist/whisper.js";
-  window.whisper = whisperModule;
-  window.whisperReady = true;
-</script>
+  <script type="module">
+    import * as whisperModule from "https://cdn.jsdelivr.net/npm/whisper-web@0.0.5/dist/whisper.js";
+    window.whisper = whisperModule;
+    window.whisperReady = true;
+  </script>
 
-<!-- Main App Logic -->
-<script src="app.js"></script>
-
+  <!-- Main App Logic -->
   <script src="app.js"></script>
+
 </body>
 </html>
