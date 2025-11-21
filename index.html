@@ -2,42 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Grammar & Spelling Coach</title>
-  <link rel="stylesheet" href="styles.css" />  
-  <script src="https://cdn.jsdelivr.net/npm/whisper-web@latest/dist/whisper.js"></script>
+  <title>ESL Grammar & Speaking Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
 
+  <!-- Whisper Web (you already had this working) -->
+  <script src="https://cdn.jsdelivr.net/npm/whisper-web@latest/dist/whisper.js"></script>
 </head>
 <body>
+  <div class="app-shell">
+    <header class="app-header">
+      <h1>ESL Grammar & Speaking Coach</h1>
+      <p class="subtitle">
+        Speak or type your English. Choose your help level. Get friendly feedback.
+      </p>
+    </header>
 
-  <h1 class="title">✏️ Grammar & Spelling Coach</h1>
-  <p class="subtitle">Learn from your mistakes with simple explanations</p>
+    <main class="app-main">
+      <!-- Input Area -->
+      <section class="card">
+        <label class="field-label" for="inputText">Your English text</label>
+        <textarea
+          id="inputText"
+          class="text-input"
+          rows="6"
+          placeholder="Type here or tap the mic and speak..."
+        ></textarea>
 
-  <div class="main-card">
-    <button id="grammarBtn" class="small-card green">
-      ✏️ Work on Grammar
-    </button>
+        <div class="toolbar">
+          <button id="micBtn" class="btn mic-btn">
+            🎤 Tap to Speak
+          </button>
+          <span id="micStatus" class="status-label">Mic: off</span>
+        </div>
 
-    <div class="dictation-section">
-      <h2>🎤 Dictate Your Text</h2>
+        <!-- NEW: Tier selection -->
+        <div class="tier-row">
+          <span class="field-label">Help level:</span>
+          <label class="tier-option">
+            <input type="radio" name="tier" value="simple" />
+            Simple
+          </label>
+          <label class="tier-option">
+            <input type="radio" name="tier" value="intermediate" checked />
+            Intermediate
+          </label>
+          <label class="tier-option">
+            <input type="radio" name="tier" value="advanced" />
+            Advanced
+          </label>
+        </div>
 
-      <button id="micBtn" class="mic-btn">
-        🎤
-      </button>
+        <div class="actions">
+          <button id="checkBtn" class="btn primary-btn">
+            ✓ Check My Writing
+          </button>
+          <button id="clearBtn" class="btn secondary-btn">
+            Clear
+          </button>
+        </div>
+      </section>
 
-      <p id="micStatus" class="status-text">Click the microphone to start dictation</p>
-    </div>
-
-    <label class="input-label">Type or dictate your English text:</label>
-    <textarea id="textInput" placeholder="Start speaking or type here..."></textarea>
-
-    <button id="checkBtn" class="check-btn">
-      ✔ Check My Writing
-    </button>
-    <button id="clearBtn" class="clear-btn">🗑 Clear</button>
-
-
-    <h3 class="results-header">Results</h3>
-    <div id="results" class="results-box"></div>
+      <!-- Results Area -->
+      <section class="card results-card">
+        <h2 class="results-title">Grammar Coach Feedback</h2>
+        <div id="results" class="results">
+          <p class="placeholder">
+            Your feedback will appear here after you press
+            <strong>“Check My Writing”</strong>.
+          </p>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script src="app.js"></script>
