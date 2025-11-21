@@ -7,10 +7,6 @@
   <link rel="stylesheet" href="styles.css" />
 
   <!-- Whisper Web (you already had this working) -->
-  <script type="module">
-  import * as whisper from "https://cdn.jsdelivr.net/npm/whisper-web@0.0.5/dist/whisper.js";
-  window.whisper = whisper;
-</script>
 </head>
 <body>
   <div class="app-shell">
@@ -78,6 +74,16 @@
       </section>
     </main>
   </div>
+
+  <!-- Whisper Web ESM Loader -->
+<script type="module">
+  import * as whisperModule from "https://cdn.jsdelivr.net/npm/whisper-web@0.0.5/dist/whisper.js";
+  window.whisper = whisperModule;
+  window.whisperReady = true;
+</script>
+
+<!-- Main App Logic -->
+<script src="app.js"></script>
 
   <script src="app.js"></script>
 </body>
