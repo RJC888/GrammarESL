@@ -122,16 +122,20 @@ let whisperModel;
 let isRecording = false;
 
 // Load Whisper model on page load
-(async () => {
-  try {
-    micStatus.innerText = "⏳ Loading speech model… (first time only)";
-    whisperModel = await whisper.loadModel("base.en");
-    micStatus.innerText = "🎤 Ready to record";
-  } catch (err) {
-    console.error("Error loading Whisper model:", err);
-    micStatus.innerText = "⚠️ Error loading speech model";
+// Wait until whisper module is loaded from index.html
+const waitForWhisper = setInterval(async () => {
+  if (window.whisperReady && window.whisper) {
+    clearInterval(waitForWhisper);
+    try {
+      micStatus.innerText = "⏳ Loading speech model… (first time only)";
+      whisperModel = await window.whisper.loadModel("base.en");
+      micStatus.innerText = "🎤 Ready to record";
+    } catch (err) {
+      console.error("Error loading Whisper model:", err);
+      micStatus.innerText = "⚠️ Error loading speech model";
+    }
   }
-})();
+}, 100);
 
 // Handle mic start/stop
 micBtn.onclick = async () => {
