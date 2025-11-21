@@ -74,15 +74,15 @@
     </main>
   </div>
 
-  <!-- Whisper Web ESM Loader -->
-  <script type="module">
-    import * as whisperModule from "https://cdn.jsdelivr.net/npm/whisper-web@0.0.5/dist/whisper.js";
-    window.whisper = whisperModule;
-    window.whisperReady = true;
-  </script>
+ <!-- Whisper Web ESM Loader (UNPKG – Stable CDN) -->
+<script type="module">
+  import * as whisperModule from "https://unpkg.com/whisper-web@0.0.8/dist/whisper.js";
+  window.whisper = whisperModule;
+  window.whisperReady = true;
+</script>
 
-  <!-- Main App Logic -->
-  <script src="app.js"></script>
+<!-- Main App Logic -->
+<script src="app.js"></script>
 
 </body>
 </html>
