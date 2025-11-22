@@ -33,14 +33,15 @@ function setLoading(isLoading) {
 // MARKDOWN → SIMPLE HTML FORMATTER
 //--------------------------------------------------
 function formatAIText(text) {
-  if (!text) return "<p>Empty response from server.</p>";
-
+  if (!text) return "<p>Empty response.</p>";
   let html = text.trim();
+
   html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/^\s*[-*]\s+/gm, "• ");
   html = html.replace(/\r\n/g, "\n");
   html = html.replace(/\n{2,}/g, "</p><p>");
   html = html.replace(/\n/g, "<br>");
+
   return `<p>${html}</p>`;
 }
 
@@ -58,7 +59,7 @@ clearBtn.addEventListener("click", () => {
 });
 
 //--------------------------------------------------
-// GRAMMAR CHECK — CALLS /api/grammar
+// CHECK GRAMMAR — CALLS /api/grammar
 //--------------------------------------------------
 checkBtn.addEventListener("click", async () => {
   const text = inputEl.value.trim();
@@ -74,86 +75,76 @@ checkBtn.addEventListener("click", async () => {
   try {
     const response = await fetch("/api/grammar", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ text, tier }),
     });
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      throw new Error(
-        `Server error (${response.status}). ${
-          errText || "Please try again later."
-        }`
-      );
+      throw new Error(`Server error (${response.status}): ${errText}`);
     }
 
     const data = await response.json();
-    const formatted = formatAIText(data.text);
-    setResultsHtml(formatted);
+    setResultsHtml(formatAIText(data.text));
 
   } catch (err) {
-    console.error("Grammar check failed:", err);
-    setResultsHtml(`
-      <p>Sorry, something went wrong while checking your writing. 🙁</p>
-      <p><small>${err.message}</small></p>
-    `);
+    setResultsHtml(`<p>❌ Error: ${err.message}</p>`);
   } finally {
     setLoading(false);
   }
 });
 
 //--------------------------------------------------
-// XENOVA WHISPER SPEECH RECOGNITION
+// WHISPER (Xenova) — Speech Recognition
 //--------------------------------------------------
 
-let recorder;
-let audioChunks = [];
-let transcriber;
+let whisperModel = null;
 let isRecording = false;
+let recorder;
+let chunks = [];
 
-// Load model at startup
+// Load whisper model AFTER module loads
 (async () => {
-  micStatus.innerText = "⏳ Loading speech model… (first time only)";
-  transcriber = await window.loadTranscriber();
+  micStatus.innerText = "⏳ Loading speech model…";
+  whisperModel = await window.loadWhisperModel();
   micStatus.innerText = "🎤 Ready to record";
 })();
 
 micBtn.onclick = async () => {
   try {
     if (!isRecording) {
-      // Start recording
+      chunks = [];
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recorder = new MediaRecorder(stream);
 
-      audioChunks = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunks.push(e.data);
-      };
+      recorder.ondataavailable = (e) => chunks.push(e.data);
 
       recorder.start();
       isRecording = true;
+
       micBtn.innerText = "⏸️";
       micStatus.innerText = "🎙 Recording… tap to stop";
 
     } else {
       recorder.stop();
       isRecording = false;
+
       micBtn.innerText = "🎤";
       micStatus.innerText = "⏳ Processing speech…";
 
-      const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-      const arrayBuffer = await audioBlob.arrayBuffer();
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const buffer = await blob.arrayBuffer();
 
-      const result = await transcriber(arrayBuffer);
+        const result = await whisperModel(buffer);
+        const transcript = result.text.trim();
 
-      const cleanTranscript = result.text.trim();
-      inputEl.value = (inputEl.value + "\n\n" + cleanTranscript).trim();
-
-      micStatus.innerText = "🎤 Ready";
+        inputEl.value = (inputEl.value + "\n\n" + transcript).trim();
+        micStatus.innerText = "🎤 Ready";
+      };
     }
   } catch (err) {
-    console.error("Whisper recording error:", err);
     micStatus.innerText = "⚠️ Mic error";
+    console.error(err);
   }
 };
