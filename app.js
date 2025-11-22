@@ -33,13 +33,21 @@ function setLoading(isLoading) {
 // MARKDOWN → SIMPLE HTML FORMATTER
 //--------------------------------------------------
 function formatAIText(text) {
-  if (!text) return "<p>Empty response.</p>";
+  if (!text) return "<p>Empty response from server.</p>";
+
   let html = text.trim();
 
+  // Bold syntax: **text**
   html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  // Replace Markdown-style bullets with dot bullets
   html = html.replace(/^\s*[-*]\s+/gm, "• ");
-  html = html.replace(/\r\n/g, "\n");
+
+  // Paragraphs: double newlines
+  html = html.replace(/\r\n/g, "\n"); // normalize
   html = html.replace(/\n{2,}/g, "</p><p>");
+
+  // Single newlines → <br>
   html = html.replace(/\n/g, "<br>");
 
   return `<p>${html}</p>`;
@@ -63,6 +71,7 @@ clearBtn.addEventListener("click", () => {
 //--------------------------------------------------
 checkBtn.addEventListener("click", async () => {
   const text = inputEl.value.trim();
+
   if (!text) {
     setResultsHtml("<p>Please type or speak some English first. 😊</p>");
     return;
@@ -75,76 +84,154 @@ checkBtn.addEventListener("click", async () => {
   try {
     const response = await fetch("/api/grammar", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, tier }),
     });
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      throw new Error(`Server error (${response.status}): ${errText}`);
+      throw new Error(
+        `Server error (${response.status}). ${
+          errText || "Please try again later."
+        }`
+      );
     }
 
     const data = await response.json();
-    setResultsHtml(formatAIText(data.text));
-
+    const formatted = formatAIText(data.text);
+    setResultsHtml(formatted);
   } catch (err) {
-    setResultsHtml(`<p>❌ Error: ${err.message}</p>`);
+    console.error("Grammar check failed:", err);
+    setResultsHtml(`
+      <p>Sorry, something went wrong while checking your writing. 🙁</p>
+      <p><small>${err.message}</small></p>
+    `);
   } finally {
     setLoading(false);
   }
 });
 
 //--------------------------------------------------
-// WHISPER (Xenova) — Speech Recognition
+// WHISPER (Xenova Transformers.js) — SPEECH-TO-TEXT
 //--------------------------------------------------
 
-let whisperModel = null;
+// State for recording
+let audioRecorder = null;
+let audioChunks = [];
 let isRecording = false;
-let recorder;
-let chunks = [];
 
-// Load whisper model AFTER module loads
-(async () => {
-  micStatus.innerText = "⏳ Loading speech model…";
-  whisperModel = await window.loadWhisperModel();
-  micStatus.innerText = "🎤 Ready to record";
-})();
+// State for Whisper (Transformers.js)
+let asrPipeline = null;
+let asrLoading = false;
+let asrError = null;
 
+/**
+ * Load Whisper base.en model once using Xenova Transformers.js.
+ * Uses the global window.transformersPipeline from index.html.
+ *
+ * Model: Xenova/whisper-base.en  (English-only, more accurate than tiny) :contentReference[oaicite:2]{index=2}
+ */
+async function loadWhisperModelOnce() {
+  if (asrPipeline || asrError) {
+    return asrPipeline;
+  }
+
+  const pipeline = window.transformersPipeline;
+  if (!pipeline) {
+    const err = new Error("Transformers pipeline not available on window.");
+    console.error(err);
+    asrError = err;
+    micStatus.innerText = "⚠️ Speech model unavailable";
+    return null;
+  }
+
+  try {
+    asrLoading = true;
+    micStatus.innerText = "⏳ Loading speech model… (first time only)";
+
+    // Create automatic-speech-recognition pipeline with Whisper base.en
+    asrPipeline = await pipeline(
+      "automatic-speech-recognition",
+      "Xenova/whisper-base.en"
+    );
+
+    micStatus.innerText = "🎤 Ready to record";
+    return asrPipeline;
+  } catch (err) {
+    console.error("Error loading Whisper model via Transformers.js:", err);
+    asrError = err;
+    micStatus.innerText = "⚠️ Error loading speech model";
+    return null;
+  } finally {
+    asrLoading = false;
+  }
+}
+
+// Preload model on page load (non-blocking)
+loadWhisperModelOnce();
+
+//--------------------------------------------------
+// MIC BUTTON — START/STOP + TRANSCRIBE
+//--------------------------------------------------
 micBtn.onclick = async () => {
   try {
+    // Ensure model is ready
+    if (!asrPipeline) {
+      if (asrLoading) {
+        micStatus.innerText = "⏳ Still loading speech model…";
+        return;
+      }
+      const pipelineInstance = await loadWhisperModelOnce();
+      if (!pipelineInstance) {
+        // Model could not be loaded
+        return;
+      }
+    }
+
     if (!isRecording) {
-      chunks = [];
+      // Start recording
+      audioChunks = [];
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      recorder = new MediaRecorder(stream);
+      audioRecorder = new MediaRecorder(stream);
 
-      recorder.ondataavailable = (e) => chunks.push(e.data);
+      audioRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
 
-      recorder.start();
+      audioRecorder.start();
       isRecording = true;
-
       micBtn.innerText = "⏸️";
       micStatus.innerText = "🎙 Recording… tap to stop";
-
     } else {
-      recorder.stop();
+      // Stop recording
+      audioRecorder.stop();
       isRecording = false;
-
       micBtn.innerText = "🎤";
       micStatus.innerText = "⏳ Processing speech…";
 
-      recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        const buffer = await blob.arrayBuffer();
+      // Combine audio chunks into a Blob
+      const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
 
-        const result = await whisperModel(buffer);
-        const transcript = result.text.trim();
+      // Use Transformers.js Whisper pipeline to transcribe the Blob
+      const result = await asrPipeline(audioBlob);
 
-        inputEl.value = (inputEl.value + "\n\n" + transcript).trim();
-        micStatus.innerText = "🎤 Ready";
-      };
+      // Result is typically { text: "..." }
+      const transcriptText =
+        (result && result.text) ||
+        (Array.isArray(result) && result[0] && result[0].text) ||
+        "";
+
+      const cleanTranscript = transcriptText.trim() || "[no speech recognized]";
+
+      // Append transcript to textarea with spacing (A: append behavior)
+      inputEl.value = (inputEl.value + "\n\n" + cleanTranscript).trim();
+
+      micStatus.innerText = "🎤 Ready";
     }
   } catch (err) {
+    console.error("Whisper recording error:", err);
     micStatus.innerText = "⚠️ Mic error";
-    console.error(err);
   }
 };
