@@ -34,7 +34,7 @@
           <span id="micStatus" class="status-label">Mic: off</span>
         </div>
 
-        <!-- NEW: Tier selection -->
+        <!-- Tier selection -->
         <div class="tier-row">
           <span class="field-label">Help level:</span>
           <label class="tier-option">
@@ -74,15 +74,19 @@
     </main>
   </div>
 
- <!-- Whisper Web ESM Loader (UNPKG – Stable CDN) -->
-<script type="module">
-  import * as whisperModule from "https://unpkg.com/whisper-web@0.0.8/dist/whisper.js";
-  window.whisper = whisperModule;
-  window.whisperReady = true;
-</script>
+  <!-- Transformers.js (Xenova Whisper) -->
+  <script type="module">
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js";
+    window.loadTranscriber = async () => {
+      return await pipeline(
+        "automatic-speech-recognition",
+        "Xenova/whisper-tiny.en"
+      );
+    };
+  </script>
 
-<!-- Main App Logic -->
-<script src="app.js"></script>
+  <!-- Main App Logic -->
+  <script src="app.js"></script>
 
 </body>
 </html>
