@@ -36,20 +36,11 @@ function formatAIText(text) {
   if (!text) return "<p>Empty response from server.</p>";
 
   let html = text.trim();
-
-  // Bold syntax: **text**
   html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-
-  // Replace Markdown-style bullets with dot bullets
   html = html.replace(/^\s*[-*]\s+/gm, "• ");
-
-  // Paragraphs: double newlines
-  html = html.replace(/\r\n/g, "\n"); // normalize
+  html = html.replace(/\r\n/g, "\n");
   html = html.replace(/\n{2,}/g, "</p><p>");
-
-  // Single newlines → <br>
   html = html.replace(/\n/g, "<br>");
-
   return `<p>${html}</p>`;
 }
 
@@ -67,11 +58,10 @@ clearBtn.addEventListener("click", () => {
 });
 
 //--------------------------------------------------
-// CHECK GRAMMAR — CALLS /api/grammar
+// GRAMMAR CHECK — CALLS /api/grammar
 //--------------------------------------------------
 checkBtn.addEventListener("click", async () => {
   const text = inputEl.value.trim();
-
   if (!text) {
     setResultsHtml("<p>Please type or speak some English first. 😊</p>");
     return;
@@ -113,63 +103,50 @@ checkBtn.addEventListener("click", async () => {
 });
 
 //--------------------------------------------------
-// WHISPER IN-BROWSER SPEECH RECOGNITION
+// XENOVA WHISPER SPEECH RECOGNITION
 //--------------------------------------------------
 
-let audioRecorder;
+let recorder;
 let audioChunks = [];
-let whisperModel;
+let transcriber;
 let isRecording = false;
 
-// Load Whisper model on page load
-// Wait until whisper module is loaded from index.html
-const waitForWhisper = setInterval(async () => {
-  if (window.whisperReady && window.whisper) {
-    clearInterval(waitForWhisper);
-    try {
-      micStatus.innerText = "⏳ Loading speech model… (first time only)";
-      whisperModel = await window.whisper.loadModel("base.en");
-      micStatus.innerText = "🎤 Ready to record";
-    } catch (err) {
-      console.error("Error loading Whisper model:", err);
-      micStatus.innerText = "⚠️ Error loading speech model";
-    }
-  }
-}, 100);
+// Load model at startup
+(async () => {
+  micStatus.innerText = "⏳ Loading speech model… (first time only)";
+  transcriber = await window.loadTranscriber();
+  micStatus.innerText = "🎤 Ready to record";
+})();
 
-// Handle mic start/stop
 micBtn.onclick = async () => {
   try {
     if (!isRecording) {
       // Start recording
-      audioChunks = [];
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioRecorder = new MediaRecorder(stream);
+      recorder = new MediaRecorder(stream);
 
-      audioRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
+      audioChunks = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
       };
 
-      audioRecorder.start();
+      recorder.start();
       isRecording = true;
       micBtn.innerText = "⏸️";
       micStatus.innerText = "🎙 Recording… tap to stop";
 
     } else {
-      // Stop recording
-      audioRecorder.stop();
+      recorder.stop();
       isRecording = false;
       micBtn.innerText = "🎤";
       micStatus.innerText = "⏳ Processing speech…";
 
-      // Convert audio to text
       const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-      const audioArrayBuffer = await audioBlob.arrayBuffer();
-      const result = await whisperModel.transcribe(audioArrayBuffer);
+      const arrayBuffer = await audioBlob.arrayBuffer();
 
-      // Append transcript to textarea with clear spacing
+      const result = await transcriber(arrayBuffer);
+
       const cleanTranscript = result.text.trim();
       inputEl.value = (inputEl.value + "\n\n" + cleanTranscript).trim();
 
