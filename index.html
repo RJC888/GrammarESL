@@ -28,9 +28,7 @@
         ></textarea>
 
         <div class="toolbar">
-          <button id="micBtn" class="btn mic-btn">
-            🎤 Tap to Speak
-          </button>
+          <button id="micBtn" class="btn mic-btn">🎤 Tap to Speak</button>
           <span id="micStatus" class="status-label">Mic: off</span>
         </div>
 
@@ -52,16 +50,12 @@
         </div>
 
         <div class="actions">
-          <button id="checkBtn" class="btn primary-btn">
-            ✓ Check My Writing
-          </button>
-          <button id="clearBtn" class="btn secondary-btn">
-            Clear
-          </button>
+          <button id="checkBtn" class="btn primary-btn">✓ Check My Writing</button>
+          <button id="clearBtn" class="btn secondary-btn">Clear</button>
         </div>
       </section>
 
-      <!-- Results Area -->
+      <!-- Results -->
       <section class="card results-card">
         <h2 class="results-title">Grammar Coach Feedback</h2>
         <div id="results" class="results">
@@ -74,15 +68,18 @@
     </main>
   </div>
 
-  <!-- Transformers.js (Xenova Whisper) -->
+  <!-- Xenova Transformers (Whisper) -->
   <script type="module">
-    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js";
-    window.loadTranscriber = async () => {
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.13.1";
+
+    window.loadWhisperModel = async () => {
       return await pipeline(
         "automatic-speech-recognition",
-        "Xenova/whisper-tiny.en"
+        "Xenova/whisper-tiny.en"   // For English-only ESL (fast & accurate)
       );
     };
+
+    window.whisperReady = true;
   </script>
 
   <!-- Main App Logic -->
