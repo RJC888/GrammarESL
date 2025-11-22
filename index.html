@@ -28,7 +28,9 @@
         ></textarea>
 
         <div class="toolbar">
-          <button id="micBtn" class="btn mic-btn">🎤 Tap to Speak</button>
+          <button id="micBtn" class="btn mic-btn">
+            🎤 Tap to Speak
+          </button>
           <span id="micStatus" class="status-label">Mic: off</span>
         </div>
 
@@ -50,12 +52,16 @@
         </div>
 
         <div class="actions">
-          <button id="checkBtn" class="btn primary-btn">✓ Check My Writing</button>
-          <button id="clearBtn" class="btn secondary-btn">Clear</button>
+          <button id="checkBtn" class="btn primary-btn">
+            ✓ Check My Writing
+          </button>
+          <button id="clearBtn" class="btn secondary-btn">
+            Clear
+          </button>
         </div>
       </section>
 
-      <!-- Results -->
+      <!-- Results Area -->
       <section class="card results-card">
         <h2 class="results-title">Grammar Coach Feedback</h2>
         <div id="results" class="results">
@@ -68,22 +74,15 @@
     </main>
   </div>
 
-  <!-- Xenova Transformers (Whisper) -->
+  <!-- Transformers.js (Xenova) for Whisper base.en -->
   <script type="module">
-    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.13.1";
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.3.0";
 
-    window.loadWhisperModel = async () => {
-      return await pipeline(
-        "automatic-speech-recognition",
-        "Xenova/whisper-tiny.en"   // For English-only ESL (fast & accurate)
-      );
-    };
-
-    window.whisperReady = true;
+    // Expose pipeline globally so app.js can use it
+    window.transformersPipeline = pipeline;
   </script>
 
   <!-- Main App Logic -->
   <script src="app.js"></script>
-
 </body>
 </html>
