@@ -1,5 +1,4 @@
-console.log("🔥 RUNNING CORRECT NEW VERSION OF app.js");
-
+console.log("🔥 RUNNING FINAL FIXED VERSION OF app.js");
 console.log("app.js loaded — waiting for transformersPipeline...");
 
 //--------------------------------------------------
@@ -129,17 +128,12 @@ let asrPipeline = null;
 let asrLoading = false;
 let asrError = null;
 
-/**
- * Load Whisper base.en model once using Xenova Transformers.js.
- * Uses the global window.transformersPipeline from index.html.
- *
- * Model: Xenova/whisper-base.en  (English-only, more accurate than tiny) :contentReference[oaicite:2]{index=2}
- */
+// Load Whisper model once
 async function loadWhisperModelOnce() {
-  // Wait until Xenova pipeline is ready
   let pipeline = window.transformersPipeline;
   let retries = 0;
 
+  // Wait for module import
   while (!pipeline && retries < 50) {
     await new Promise(r => setTimeout(r, 100));
     pipeline = window.transformersPipeline;
@@ -168,7 +162,7 @@ async function loadWhisperModelOnce() {
     micStatus.innerText = "🎤 Ready to record";
     return asrPipeline;
   } catch (err) {
-    console.error("Error loading Whisper model via Transformers.js:", err);
+    console.error("Error loading Whisper model:", err);
     asrError = err;
     micStatus.innerText = "⚠️ Error loading speech model";
     return null;
@@ -177,7 +171,7 @@ async function loadWhisperModelOnce() {
   }
 }
 
-// Delay loading until module script has initialized
+// Load on page ready
 window.addEventListener("load", () => {
   setTimeout(() => loadWhisperModelOnce(), 200);
 });
@@ -185,54 +179,18 @@ window.addEventListener("load", () => {
 //--------------------------------------------------
 // MIC BUTTON — START/STOP + TRANSCRIBE
 //--------------------------------------------------
-// Convert audio Blob into Float32 raw PCM and resample to 16kHz if needed
-async function readAudioFromBlob(blob) {
-  const arrayBuffer = await blob.arrayBuffer();
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
-  const pcm = decodedAudio.getChannelData(0); // original sample rate (e.g., 44.1kHz)
-
-  // Resample to 16kHz for Whisper
-  const inputSampleRate = decodedAudio.sampleRate;
-  const targetSampleRate = 16000;
-
-  if (inputSampleRate === targetSampleRate) {
-    return pcm; // perfect — no resampling needed
-  }
-
-  const sampleRatio = inputSampleRate / targetSampleRate;
-  const newLength = Math.round(pcm.length / sampleRatio);
-  const resampled = new Float32Array(newLength);
-
-  for (let i = 0; i < newLength; i++) {
-    resampled[i] = pcm[Math.round(i * sampleRatio)];
-  }
-
-  return resampled;
-}
-
 micBtn.onclick = async () => {
   try {
-    // Ensure model is ready
     if (!asrPipeline) {
-      if (asrLoading) {
-        micStatus.innerText = "⏳ Still loading speech model…";
-        return;
-      }
       const pipelineInstance = await loadWhisperModelOnce();
-      if (!pipelineInstance) {
-        // Model could not be loaded
-        return;
-      }
+      if (!pipelineInstance) return;
     }
 
     if (!isRecording) {
       // Start recording
       audioChunks = [];
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioRecorder = new MediaRecorder(stream, {
-  mimeType: 'audio/mp4'
-});
+      audioRecorder = new MediaRecorder(stream);
 
       audioRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -251,22 +209,20 @@ micBtn.onclick = async () => {
       micBtn.innerText = "🎤";
       micStatus.innerText = "⏳ Processing speech…";
 
-  // Combine audio chunks into a Blob
-const audioBlob = new Blob(audioChunks);
+      // Convert recorded audio to raw PCM
+      const audioBlob = new Blob(audioChunks);
+      const arrayBuffer = await audioBlob.arrayBuffer();
 
-// Let Xenova parse audio automatically
-// Convert Blob to ArrayBuffer
-const arrayBuffer = await audioBlob.arrayBuffer();
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
+      const pcm = decodedAudio.getChannelData(0);
 
-// Let Xenova decode the audio buffer directly
-const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
-const pcm = decodedAudio.getChannelData(0);
+      // Run Whisper on raw PCM
+      const result = await asrPipeline({
+        audio: pcm,
+        sampling_rate: audioContext.sampleRate,
+      });
 
-// Whisper transcription
-const result = await asrPipeline(waveform);
-
-      // Result is typically { text: "..." }
       const transcriptText =
         (result && result.text) ||
         (Array.isArray(result) && result[0] && result[0].text) ||
@@ -274,7 +230,6 @@ const result = await asrPipeline(waveform);
 
       const cleanTranscript = transcriptText.trim() || "[no speech recognized]";
 
-      // Append transcript to textarea with spacing (A: append behavior)
       inputEl.value = (inputEl.value + "\n\n" + cleanTranscript).trim();
 
       micStatus.innerText = "🎤 Ready";
