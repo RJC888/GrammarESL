@@ -1,3 +1,5 @@
+console.log("app.js loaded — waiting for transformersPipeline...");
+
 //--------------------------------------------------
 // DOM ELEMENTS
 //--------------------------------------------------
@@ -132,29 +134,35 @@ let asrError = null;
  * Model: Xenova/whisper-base.en  (English-only, more accurate than tiny) :contentReference[oaicite:2]{index=2}
  */
 async function loadWhisperModelOnce() {
-  if (asrPipeline || asrError) {
-    return asrPipeline;
+  // Wait until Xenova pipeline is ready
+  let pipeline = window.transformersPipeline;
+  let retries = 0;
+
+  while (!pipeline && retries < 50) {
+    await new Promise(r => setTimeout(r, 100));
+    pipeline = window.transformersPipeline;
+    retries++;
   }
 
-  const pipeline = window.transformersPipeline;
   if (!pipeline) {
-    const err = new Error("Transformers pipeline not available on window.");
+    const err = new Error("Transformers pipeline not available on window after waiting.");
     console.error(err);
     asrError = err;
     micStatus.innerText = "⚠️ Speech model unavailable";
     return null;
   }
 
+  if (asrPipeline || asrError) {
+    return asrPipeline;
+  }
+
   try {
     asrLoading = true;
     micStatus.innerText = "⏳ Loading speech model… (first time only)";
-
-    // Create automatic-speech-recognition pipeline with Whisper base.en
     asrPipeline = await pipeline(
       "automatic-speech-recognition",
       "Xenova/whisper-base.en"
     );
-
     micStatus.innerText = "🎤 Ready to record";
     return asrPipeline;
   } catch (err) {
@@ -166,6 +174,7 @@ async function loadWhisperModelOnce() {
     asrLoading = false;
   }
 }
+
 
 // Preload model on page load (non-blocking)
 loadWhisperModelOnce();
