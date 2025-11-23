@@ -1,3 +1,5 @@
+console.log("🔥 RUNNING CORRECT NEW VERSION OF app.js");
+
 console.log("app.js loaded — waiting for transformersPipeline...");
 
 //--------------------------------------------------
