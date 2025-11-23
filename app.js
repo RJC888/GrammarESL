@@ -259,7 +259,9 @@ const audioBlob = new Blob(audioChunks);
 const arrayBuffer = await audioBlob.arrayBuffer();
 
 // Let Xenova decode the audio buffer directly
-const waveform = await window.read_audio(arrayBuffer, 16000);
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
+const pcm = decodedAudio.getChannelData(0);
 
 // Whisper transcription
 const result = await asrPipeline(waveform);
