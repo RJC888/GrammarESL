@@ -183,6 +183,13 @@ window.addEventListener("load", () => {
 //--------------------------------------------------
 // MIC BUTTON — START/STOP + TRANSCRIBE
 //--------------------------------------------------
+async function readAudioFromBlob(blob) {
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
+  return decodedAudio.getChannelData(0);
+}
+
 micBtn.onclick = async () => {
   try {
     // Ensure model is ready
@@ -221,11 +228,14 @@ micBtn.onclick = async () => {
       micBtn.innerText = "🎤";
       micStatus.innerText = "⏳ Processing speech…";
 
-      // Combine audio chunks into a Blob
-      const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+  // Combine audio chunks into a Blob
+const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
 
-      // Use Transformers.js Whisper pipeline to transcribe the Blob
-      const result = await asrPipeline(audioBlob);
+// Convert Blob → PCM Float32Array
+const rawAudio = await readAudioFromBlob(audioBlob);
+
+// Transcribe PCM audio
+const result = await asrPipeline(rawAudio);
 
       // Result is typically { text: "..." }
       const transcriptText =
