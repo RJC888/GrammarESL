@@ -183,11 +183,30 @@ window.addEventListener("load", () => {
 //--------------------------------------------------
 // MIC BUTTON — START/STOP + TRANSCRIBE
 //--------------------------------------------------
+// Convert audio Blob into Float32 raw PCM and resample to 16kHz if needed
 async function readAudioFromBlob(blob) {
   const arrayBuffer = await blob.arrayBuffer();
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
-  return decodedAudio.getChannelData(0);
+  const pcm = decodedAudio.getChannelData(0); // original sample rate (e.g., 44.1kHz)
+
+  // Resample to 16kHz for Whisper
+  const inputSampleRate = decodedAudio.sampleRate;
+  const targetSampleRate = 16000;
+
+  if (inputSampleRate === targetSampleRate) {
+    return pcm; // perfect — no resampling needed
+  }
+
+  const sampleRatio = inputSampleRate / targetSampleRate;
+  const newLength = Math.round(pcm.length / sampleRatio);
+  const resampled = new Float32Array(newLength);
+
+  for (let i = 0; i < newLength; i++) {
+    resampled[i] = pcm[Math.round(i * sampleRatio)];
+  }
+
+  return resampled;
 }
 
 micBtn.onclick = async () => {
