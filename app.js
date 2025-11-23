@@ -250,7 +250,7 @@ micBtn.onclick = async () => {
       micStatus.innerText = "⏳ Processing speech…";
 
   // Combine audio chunks into a Blob
-const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+const audioBlob = new Blob(audioChunks);
 
 // Convert Blob → PCM Float32Array
 const rawAudio = await readAudioFromBlob(audioBlob);
