@@ -230,7 +230,9 @@ micBtn.onclick = async () => {
       // Start recording
       audioChunks = [];
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioRecorder = new MediaRecorder(stream);
+      audioRecorder = new MediaRecorder(stream, {
+  mimeType: 'audio/mp4'
+});
 
       audioRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
