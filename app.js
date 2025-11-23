@@ -207,8 +207,7 @@ micBtn.onclick = async () => {
       const audioBlob = new Blob(audioChunks);
 
       // Convert Blob → raw PCM using Xenova read_audio
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const waveform = await window.read_audio(arrayBuffer, 16000);
+      const waveform = await window.read_audio(audioBlob, 16000);
 
       // Send PCM vec → Whisper
       const result = await asrPipeline(waveform);
