@@ -255,7 +255,8 @@ micBtn.onclick = async () => {
 const audioBlob = new Blob(audioChunks);
 
 // Let Xenova parse audio automatically
-const result = await asrPipeline(audioBlob);
+const waveform = await window.read_audio(audioBlob, 16000);
+const result = await asrPipeline(waveform);
 
       // Result is typically { text: "..." }
       const transcriptText =
