@@ -175,9 +175,10 @@ async function loadWhisperModelOnce() {
   }
 }
 
-
-// Preload model on page load (non-blocking)
-loadWhisperModelOnce();
+// Delay loading until module script has initialized
+window.addEventListener("load", () => {
+  setTimeout(() => loadWhisperModelOnce(), 200);
+});
 
 //--------------------------------------------------
 // MIC BUTTON — START/STOP + TRANSCRIBE
