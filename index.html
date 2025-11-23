@@ -74,16 +74,15 @@
     </main>
   </div>
 
-  <!-- Xenova Transformers Library (required for Whisper ASR) -->
-<script src="https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js"></script>
-
   <!-- Transformers.js (Xenova) for Whisper base.en -->
   <script type="module">
-    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.3.0";
+  import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
 
-    // Expose pipeline globally so app.js can use it
-    window.transformersPipeline = pipeline;
-  </script>
+  env.allowLocalModels = false;
+  env.useBrowserCache = false;
+
+  window.transformersPipeline = pipeline;
+</script>
 
   <!-- Main App Logic -->
   <script src="app.js"></script>
