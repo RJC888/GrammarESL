@@ -254,7 +254,10 @@ const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
 const rawAudio = await readAudioFromBlob(audioBlob);
 
 // Transcribe PCM audio
-const result = await asrPipeline(rawAudio);
+const result = await asrPipeline({
+  audio: rawAudio,
+  sampling_rate: 16000
+});
 
       // Result is typically { text: "..." }
       const transcriptText =
