@@ -1,4 +1,4 @@
-console.log("🔥 RUNNING FINAL WAV-SAFE VERSION OF app.js");
+console.log("🔥 RUNNING RAW-PCM WHISPER VERSION OF app.js");
 
 //--------------------------------------------------
 // DOM ELEMENTS
@@ -38,11 +38,20 @@ function formatAIText(text) {
   if (!text) return "<p>Empty response from server.</p>";
 
   let html = text.trim();
+
+  // Bold syntax: **text**
   html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  // Replace Markdown-style bullets with dot bullets
   html = html.replace(/^\s*[-*]\s+/gm, "• ");
-  html = html.replace(/\r\n/g, "\n");
+
+  // Paragraphs: double newlines
+  html = html.replace(/\r\n/g, "\n"); // normalize
   html = html.replace(/\n{2,}/g, "</p><p>");
+
+  // Single newlines → <br>
   html = html.replace(/\n/g, "<br>");
+
   return `<p>${html}</p>`;
 }
 
@@ -108,34 +117,40 @@ checkBtn.addEventListener("click", async () => {
 // WHISPER (Xenova Transformers.js) — SPEECH-TO-TEXT
 //--------------------------------------------------
 
-// State for recording
-let audioRecorder = null;
-let audioChunks = [];
-let isRecording = false;
-
-// State for Whisper
+// State for Whisper (Transformers.js)
 let asrPipeline = null;
 let asrLoading = false;
-let asrError = null;
+
+// RAW AUDIO CAPTURE STATE (no MediaRecorder)
+let audioContext = null;
+let mediaStream = null;
+let mediaSource = null;
+let processorNode = null;
+let isRecording = false;
+let recordedChunks = []; // array of Float32Array
+let recordedSampleRate = 16000;
 
 //--------------------------------------------------
-// LOAD WHISPER MODEL
+// LOAD WHISPER MODEL ONCE
 //--------------------------------------------------
 async function loadWhisperModelOnce() {
+  if (asrPipeline) return asrPipeline;
+  if (asrLoading) return null;
+
   let pipeline = window.transformersPipeline;
-  if (!pipeline) {
-    console.warn("Waiting for pipeline script to be ready...");
-    await new Promise(r => setTimeout(r, 200));
+  let retries = 0;
+
+  while (!pipeline && retries < 50) {
+    await new Promise((r) => setTimeout(r, 100));
     pipeline = window.transformersPipeline;
+    retries++;
   }
 
   if (!pipeline) {
-    console.error("❌ Transformers pipeline not available.");
-    micStatus.innerText = "⚠️ Missing speech model";
+    console.error("❌ transformersPipeline not available on window");
+    micStatus.innerText = "⚠ Speech model unavailable";
     return null;
   }
-
-  if (asrPipeline) return asrPipeline;
 
   try {
     asrLoading = true;
@@ -147,80 +162,180 @@ async function loadWhisperModelOnce() {
     micStatus.innerText = "🎤 Ready to record";
     return asrPipeline;
   } catch (err) {
-    console.error("Error loading Whisper:", err);
-    micStatus.innerText = "⚠️ Speech model load error";
+    console.error("Error loading Whisper model:", err);
+    micStatus.innerText = "⚠ Error loading speech model";
     return null;
   } finally {
     asrLoading = false;
   }
 }
 
-window.addEventListener("load", () => loadWhisperModelOnce());
+window.addEventListener("load", () => {
+  loadWhisperModelOnce();
+});
 
 //--------------------------------------------------
-// RECORDING FORMAT SELECTION
+// UTIL — RESAMPLE TO 16kHz (simple, good enough)
 //--------------------------------------------------
-function getSupportedMimeType() {
-  if (MediaRecorder.isTypeSupported("audio/wav")) return "audio/wav";
-  if (MediaRecorder.isTypeSupported("audio/mp4")) return "audio/mp4"; // Safari
-  if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus"))
-    return "audio/webm;codecs=opus"; // Chrome
-  return "";
+function resampleTo16k(input, inputSampleRate) {
+  const targetRate = 16000;
+  if (inputSampleRate === targetRate) {
+    return input;
+  }
+  const ratio = inputSampleRate / targetRate;
+  const newLength = Math.round(input.length / ratio);
+  const output = new Float32Array(newLength);
+  for (let i = 0; i < newLength; i++) {
+    output[i] = input[Math.floor(i * ratio)];
+  }
+  return output;
 }
 
 //--------------------------------------------------
-// MIC BUTTON — START/STOP + TRANSCRIBE
+// START RAW-PCM CAPTURE (NO MEDIARECORDER)
+//--------------------------------------------------
+async function startRawRecording() {
+  try {
+    recordedChunks = [];
+
+    // 1. Make audio context
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    recordedSampleRate = audioContext.sampleRate;
+
+    // 2. Get mic stream
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaSource = audioContext.createMediaStreamSource(mediaStream);
+
+    // 3. Create ScriptProcessorNode to grab PCM chunks
+    // buffer size 4096, 1 input channel, 1 output channel
+    processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+
+    processorNode.onaudioprocess = (event) => {
+      if (!isRecording) return;
+      const inputBuffer = event.inputBuffer;
+      const channelData = inputBuffer.getChannelData(0);
+
+      // Copy data out so we don't hold onto AudioBuffer internals
+      const chunk = new Float32Array(channelData.length);
+      chunk.set(channelData);
+      recordedChunks.push(chunk);
+    };
+
+    // 4. Connect graph
+    mediaSource.connect(processorNode);
+    // Some browsers require processor to connect to destination to run
+    processorNode.connect(audioContext.destination);
+
+    isRecording = true;
+    micBtn.innerText = "⏸️";
+    micStatus.innerText = "🎙 Recording… tap again to stop";
+  } catch (err) {
+    console.error("Error starting raw recording:", err);
+    micStatus.innerText = "⚠️ Mic permission or audio error";
+  }
+}
+
+//--------------------------------------------------
+// STOP RAW-PCM CAPTURE, BUILD FLOAT32, RUN WHISPER
+//--------------------------------------------------
+async function stopRawRecordingAndTranscribe() {
+  try {
+    isRecording = false;
+
+    if (processorNode) {
+      processorNode.disconnect();
+      processorNode.onaudioprocess = null;
+    }
+    if (mediaSource) {
+      mediaSource.disconnect();
+    }
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((t) => t.stop());
+    }
+
+    if (audioContext) {
+      try {
+        await audioContext.close();
+      } catch (e) {
+        console.warn("Error closing audioContext:", e);
+      }
+    }
+
+    micStatus.innerText = "⏳ Processing speech…";
+
+    // Join all chunks into one big Float32Array
+    let totalLength = 0;
+    for (const chunk of recordedChunks) {
+      totalLength += chunk.length;
+    }
+    const fullPcm = new Float32Array(totalLength);
+    let offset = 0;
+    for (const chunk of recordedChunks) {
+      fullPcm.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    if (fullPcm.length === 0) {
+      micStatus.innerText = "⚠️ No audio captured";
+      return;
+    }
+
+    // Resample to 16kHz for Whisper
+    const resampled = resampleTo16k(fullPcm, recordedSampleRate);
+
+    // Make sure Whisper is ready
+    if (!asrPipeline) {
+      await loadWhisperModelOnce();
+      if (!asrPipeline) {
+        micStatus.innerText = "⚠️ Speech model unavailable";
+        return;
+      }
+    }
+
+    // Run Whisper on raw PCM
+    const result = await asrPipeline({
+      audio: resampled,
+      sampling_rate: 16000,
+    });
+
+    const transcriptText =
+      (result && result.text) ||
+      (Array.isArray(result) && result[0] && result[0].text) ||
+      "";
+
+    const cleanTranscript = transcriptText.trim() || "[no speech recognized]";
+
+    // Append to text area
+    inputEl.value = (inputEl.value + "\n\n" + cleanTranscript).trim();
+    micStatus.innerText = "🎤 Ready";
+  } catch (err) {
+    console.error("Whisper recording error:", err);
+    micStatus.innerText = "⚠️ Mic error";
+  } finally {
+    // Reset references
+    audioContext = null;
+    mediaStream = null;
+    mediaSource = null;
+    processorNode = null;
+    recordedChunks = [];
+  }
+}
+
+//--------------------------------------------------
+// MIC BUTTON HANDLER — TOGGLE RECORD / TRANSCRIBE
 //--------------------------------------------------
 micBtn.onclick = async () => {
   try {
-    if (!asrPipeline) {
-      await loadWhisperModelOnce();
-      if (!asrPipeline) return;
-    }
-
     if (!isRecording) {
-      // START RECORDING
-      audioChunks = [];
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      const mimeType = getSupportedMimeType();
-      console.log("🎙 Using mimeType:", mimeType);
-
-      audioRecorder = new MediaRecorder(stream, { mimeType });
-
-      audioRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunks.push(event.data);
-      };
-
-      audioRecorder.start();
-      isRecording = true;
-      micBtn.innerText = "⏸️";
-      micStatus.innerText = "🎙 Recording…";
+      // Start recording
+      await startRawRecording();
     } else {
-      // STOP RECORDING
-      audioRecorder.stop();
-      isRecording = false;
+      // Stop and transcribe
       micBtn.innerText = "🎤";
-      micStatus.innerText = "⏳ Processing…";
-
-      // Convert chunks → blob
-      const audioBlob = new Blob(audioChunks);
-
-      // Convert Blob → raw PCM using Xenova read_audio
-      const waveform = await window.read_audio(audioBlob, 16000);
-
-      // Send PCM vec → Whisper
-      const result = await asrPipeline(waveform);
-
-      const transcriptText = result?.text || "";
-      const cleanTranscript = transcriptText.trim() || "[no speech recognized]";
-
-      inputEl.value = (inputEl.value + "\n\n" + cleanTranscript).trim();
-      micStatus.innerText = "🎤 Ready";
+      await stopRawRecordingAndTranscribe();
     }
-
   } catch (err) {
-    console.error("Whisper recording error:", err);
+    console.error("Whisper micBtn onclick error:", err);
     micStatus.innerText = "⚠️ Mic error";
   }
 };
