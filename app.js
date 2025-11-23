@@ -254,14 +254,8 @@ micBtn.onclick = async () => {
   // Combine audio chunks into a Blob
 const audioBlob = new Blob(audioChunks);
 
-// Convert Blob → PCM Float32Array
-const rawAudio = await readAudioFromBlob(audioBlob);
-
-// Transcribe PCM audio
-const result = await asrPipeline({
-  audio: rawAudio,
-  sampling_rate: 16000
-});
+// Let Xenova parse audio automatically
+const result = await asrPipeline(audioBlob);
 
       // Result is typically { text: "..." }
       const transcriptText =
