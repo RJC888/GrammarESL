@@ -116,7 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================
-  // MIC (UI-ONLY PLACEHOLDER)
+  // MIC — REAL SPEECH RECOGNITION (Safari native)
   // ==========================
   function handleMicClick() {
   if (!recognition) {
