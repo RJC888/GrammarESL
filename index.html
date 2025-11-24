@@ -62,17 +62,57 @@
       </section>
 
       <!-- Results Area -->
-      <section class="card results-card">
-        <h2 class="results-title">Grammar Coach Feedback</h2>
-        <div id="results" class="results">
-          <p class="placeholder">
-            Your feedback will appear here after you press
-            <strong>“Check My Writing”</strong>.
-          </p>
-        </div>
-      </section>
-    </main>
+     <section class="card">
+
+  <!-- INPUT LANGUAGE -->
+  <div class="lang-row">
+    <span class="field-label">Input Language:</span>
+    <label><input type="radio" name="inputLang" value="en" checked /> English</label>
+    <label><input type="radio" name="inputLang" value="es" /> Spanish</label>
   </div>
+
+  <!-- CORRECTION LANGUAGE -->
+  <div class="lang-row">
+    <span class="field-label">Correction Language:</span>
+    <label><input type="radio" name="corrLang" value="en" checked /> English</label>
+    <label><input type="radio" name="corrLang" value="es" /> Spanish</label>
+  </div>
+
+  <!-- EXPLANATION LANGUAGE -->
+  <div class="lang-row">
+    <span class="field-label">Explanation Language:</span>
+    <label><input type="radio" name="exLang" value="en" checked /> English</label>
+    <label><input type="radio" name="exLang" value="es" /> Spanish</label>
+  </div>
+
+  <!-- HELP LEVEL -->
+  <div class="tier-row">
+    <span class="field-label">Help level:</span>
+    <label><input type="radio" name="tier" value="simple" /> Simple</label>
+    <label><input type="radio" name="tier" value="intermediate" checked /> Intermediate</label>
+    <label><input type="radio" name="tier" value="advanced" /> Advanced</label>
+  </div>
+
+  <!-- TEXT INPUT -->
+  <label for="inputText" class="field-label">Your text</label>
+  <textarea id="inputText" class="text-input" rows="5"
+    placeholder="Type here or tap the mic and speak..."></textarea>
+
+  <!-- BIG MIC BUTTON -->
+  <div class="toolbar">
+    <button id="micBtn" class="mic-circle">
+      🎤
+    </button>
+    <span id="micStatus" class="status-label">Mic: off</span>
+  </div>
+
+  <!-- ACTION BUTTONS -->
+  <div class="actions">
+    <button id="checkBtn" class="btn primary-btn">✓ Check My Writing</button>
+    <button id="clearBtn" class="btn secondary-btn">Clear</button>
+  </div>
+
+</section>
 
   <!-- Main App Logic -->
   <script src="app.js"></script>
