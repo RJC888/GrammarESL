@@ -143,7 +143,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     recognition.onresult = (event) => {
       let transcript = event.results[0][0].transcript;
-      inputTextEl.value = transcript;
+      let existing = inputTextEl.value.trim();
+      inputTextEl.value = existing + " " + transcript;
     };
 
     recognition.onerror = (event) => {
