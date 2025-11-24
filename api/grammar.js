@@ -1,11 +1,15 @@
 // /api/grammar.js
-// Secure backend: accepts EITHER plain text OR audioBase64, does:
-// 1) optional transcription (Whisper)
-// 2) ESL grammar feedback
-// 3) returns { text: "...", transcript: "..." }
 
 import OpenAI from "openai";
 import { toFile } from "openai/uploads";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',   // allow larger audio payloads
+    },
+  },
+};
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -17,27 +21,26 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { text, tier = "A", audioBase64, mimeType } = req.body || {};
+    const { text, tier = "intermediate", audioBase64, mimeType } = req.body || {};
     let sourceText = text || "";
     let transcriptText = "";
 
-    // 1) If we got audio, transcribe it with Whisper-like model
+    // If recording was sent rather than text input
     if (!sourceText && audioBase64) {
       const audioBuffer = Buffer.from(audioBase64, "base64");
-      const extension = mimeType && mimeType.includes("/")
-        ? mimeType.split("/")[1]
-        : "mp4";
+      const extension = mimeType && mimeType.includes("/") ? mimeType.split("/")[1] : "mp4";
 
       const file = await toFile(audioBuffer, `grammar-audio.${extension}`);
 
-      // Use gpt-4o-mini-transcribe (or change to "whisper-1" if needed)
+      console.log("🎧 Performing Whisper transcription...");
+
+      // Correct model
       const transcription = await client.audio.transcriptions.create({
-        model: "gpt-4o-mini-transcribe",
+        model: "whisper-1",
         file,
         response_format: "text",
       });
 
-      // When response_format = "text", transcription is a plain string
       transcriptText =
         typeof transcription === "string"
           ? transcription
@@ -47,58 +50,46 @@ export default async function handler(req, res) {
     }
 
     if (!sourceText) {
-      return res
-        .status(400)
-        .json({ error: "No text or audio provided to analyze." });
+      return res.status(400).json({ error: "No text or audio provided to analyze." });
     }
 
-    // 2) Build ESL-friendly prompt
-    const tierLabel = tier || "A";
-
+    // Prepare grammar teaching prompt
     const userPrompt = `
-You are an experienced ESL grammar teacher for upper-elementary and adult learners.
+You are an experienced ESL grammar teacher for all levels.
 
-STUDENT WRITING (to analyze):
+STUDENT WRITING:
 ---
 ${sourceText}
 ---
 
-TIER LEVEL: ${tierLabel}
+HELP LEVEL: ${tier}
 
-Please:
-1. Correct the grammar and punctuation.
-2. Briefly explain the most important corrections in simple, clear English.
-3. Give 1–3 short practice sentences the student can speak or write to improve.
+Provide:
+1. A corrected version of the English
+2. Simple explanation of 2–4 key grammar improvements
+3. A few short practice sentences
 
-Format like this:
+Format:
 
-Corrected Version:
-[corrected paragraph]
+Corrected English:
+...
 
 Key Grammar Points:
-- [short, simple explanation]
-- [short, simple explanation]
+- ...
 
 Practice Sentences:
 1. ...
 2. ...
-3. ...
 `.trim();
 
-    // 3) Call a lightweight model for grammar feedback
+    console.log("✏️ Performing grammar analysis...");
+
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.3,
+      temperature: 0.2,
       messages: [
-        {
-          role: "system",
-          content:
-            "You are a kind, concise ESL grammar teacher. Keep explanations short and clear.",
-        },
-        {
-          role: "user",
-          content: userPrompt,
-        },
+        { role: "system", content: "You are a concise, friendly ESL grammar coach." },
+        { role: "user", content: userPrompt },
       ],
     });
 
@@ -106,17 +97,17 @@ Practice Sentences:
       completion.choices?.[0]?.message?.content?.trim() ||
       "No feedback generated.";
 
-    // Stay compatible with your existing frontend:
-    // it expects { text: ... }
     return res.status(200).json({
       text: feedback,
       transcript: transcriptText,
-      tier: tierLabel,
+      tier,
     });
+
   } catch (err) {
     console.error("❌ /api/grammar error:", err);
+
     return res.status(500).json({
-      error: "Internal server error.",
+      error: "Server crash during grammar/transcription",
       details: err.message || "Unknown error",
     });
   }
