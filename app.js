@@ -142,10 +142,21 @@ document.addEventListener("DOMContentLoaded", () => {
     recognition.start();
 
     recognition.onresult = (event) => {
-      let transcript = event.results[0][0].transcript;
-      let existing = inputTextEl.value.trim();
-      inputTextEl.value = existing + " " + transcript;
-    };
+  let transcript = event.results[0][0].transcript.trim();
+
+  if (event.results[0].isFinal) {
+    // move temp into final
+    finalText += transcript + " ";
+    partialText = "";
+
+  } else {
+    // update live preview
+    partialText = transcript;
+  }
+
+  inputTextEl.value = (finalText + partialText).trim() + " ";
+  inputTextEl.focus();
+};
 
     recognition.onerror = (event) => {
       console.error("Speech recognition error:", event.error);
