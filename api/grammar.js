@@ -1,114 +1,126 @@
-// /api/grammar.js
-
-import OpenAI from "openai";
-import { toFile } from "openai/uploads";
-
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',   // allow larger audio payloads
-    },
-  },
-};
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   try {
-    const { text, tier = "intermediate", audioBase64, mimeType } = req.body || {};
-    let sourceText = text || "";
-    let transcriptText = "";
-
-    // If recording was sent rather than text input
-    if (!sourceText && audioBase64) {
-      const audioBuffer = Buffer.from(audioBase64, "base64");
-      const extension = mimeType && mimeType.includes("/") ? mimeType.split("/")[1] : "mp4";
-
-      const file = await toFile(audioBuffer, `grammar-audio.${extension}`);
-
-      console.log("🎧 Performing Whisper transcription...");
-
-      // Correct model
-      const transcription = await client.audio.transcriptions.create({
-        model: "whisper-1",
-        file,
-        response_format: "text",
-      });
-
-      transcriptText =
-        typeof transcription === "string"
-          ? transcription
-          : transcription.text || "";
-
-      sourceText = transcriptText.trim();
+    if (req.method !== "POST") {
+      res.setHeader("Allow", ["POST"]);
+      return res.status(405).json({ error: "Method Not Allowed" });
     }
 
-    if (!sourceText) {
-      return res.status(400).json({ error: "No text or audio provided to analyze." });
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
     }
 
-    // Prepare grammar teaching prompt
-    const userPrompt = `
-You are an experienced ESL grammar teacher for all levels.
+    const {
+      text,
+      level,
+      inputLanguage,
+      correctionLanguage,
+      explanationLanguage,
+      source
+    } = req.body || {};
 
-STUDENT WRITING:
----
-${sourceText}
----
+    if (!text || typeof text !== "string") {
+      return res.status(400).json({ error: "Missing or invalid text" });
+    }
 
-HELP LEVEL: ${tier}
+    // ============================================
+    // TIERED RESPONSE RULES (locked from design)
+    // ============================================
+    let tierText = "";
 
-Provide:
-1. A corrected version of the English
-2. Simple explanation of 2–4 key grammar improvements
-3. A few short practice sentences
+    if (level === "simple") {
+      tierText = `
+Use very simple language.
+Look for 1–3 important corrections.
+Provide one short encouragement.
+Avoid complex grammar terminology.
+      `;
+    }
 
-Format:
+    if (level === "intermediate") {
+      tierText = `
+Correct all grammar errors.
+Explain the biggest issue briefly.
+Keep explanations moderately simple.
+Provide one short learning suggestion.
+      `;
+    }
 
-Corrected English:
-...
+    if (level === "advanced") {
+      tierText = `
+Provide full grammatical correction.
+Use correct grammatical terminology.
+Offer deeper explanation when useful.
+Provide additional refined rewrite variations.
+      `;
+    }
 
-Key Grammar Points:
-- ...
+    // ============================================
+    // SYSTEM PROMPT (brain of the coach)
+    // ============================================
+    const systemPrompt = `
+You are a friendly, encouraging grammar and language coach.
+You ALWAYS:
+- correct the text INTO the input language (${inputLanguage})
+- give all correction output in ${inputLanguage}
+- then give explanation & encouragement in ${explanationLanguage}
 
-Practice Sentences:
-1. ...
-2. ...
-`.trim();
+NEVER:
+- mix the correction language with the explanation language
+- rewrite the student's meaning drastically
 
-    console.log("✏️ Performing grammar analysis...");
+TIER RULES:
+${tierText}
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.2,
-      messages: [
-        { role: "system", content: "You are a concise, friendly ESL grammar coach." },
-        { role: "user", content: userPrompt },
-      ],
+Formatting required:
+1) Start with one short praise sentence.
+2) Then: "Corrected:" (in ${inputLanguage}) followed by corrected version.
+3) Then: "Explanation:" in ${explanationLanguage}
+4) End with short encouragement in ${explanationLanguage}
+`;
+
+    const userMessage = `
+User input text:
+"${text}"
+
+Source: ${source}
+`;
+
+    // ============================================
+    // CALL OPENAI
+    // ============================================
+    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        temperature: 0.25,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ]
+      }),
     });
+
+    if (!openaiResponse.ok) {
+      const errText = await openaiResponse.text();
+      console.error("OpenAI API error:", errText);
+      return res.status(500).json({ error: "OpenAI API error" });
+    }
+
+    const data = await openaiResponse.json();
 
     const feedback =
-      completion.choices?.[0]?.message?.content?.trim() ||
-      "No feedback generated.";
+      data?.choices?.[0]?.message?.content ||
+      "I could not generate feedback — please try again.";
 
-    return res.status(200).json({
-      text: feedback,
-      transcript: transcriptText,
-      tier,
-    });
+    return res.status(200).json({ feedback });
 
-  } catch (err) {
-    console.error("❌ /api/grammar error:", err);
-
-    return res.status(500).json({
-      error: "Server crash during grammar/transcription",
-      details: err.message || "Unknown error",
-    });
+  } catch (error) {
+    console.error("Unexpected backend error:", error);
+    return res.status(500).json({ error: "Unexpected server error" });
   }
 }
