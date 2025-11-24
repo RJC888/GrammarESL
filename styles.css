@@ -208,4 +208,23 @@ body {
   .tier-row {
     align-items: flex-start;
   }
+  .mic-circle {
+  width: 64px;
+  height: 64px;
+  font-size: 28px;
+  border-radius: 50%;
+  border: none;
+  background-color: #d73c3c;
+  color: white;
+  cursor: pointer;
+  transition: transform 0.1s ease;
 }
+
+.mic-circle:active {
+  transform: scale(0.95);
+}
+
+.mic-circle.listening {
+  background-color: #2c8dfc;
+}
+
