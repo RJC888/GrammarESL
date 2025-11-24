@@ -19,6 +19,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================
   let recognition = null;
   let isRecordingSpeech = false;
+  let finalText = "";
+  let partialText = "";
 
   // ==========================
   // HELPERS
