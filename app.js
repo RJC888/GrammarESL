@@ -14,6 +14,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const clearBtn = document.getElementById("clearBtn");
   const micBtn = document.getElementById("micBtn");
 
+   // ==========================
+  // SPEECH RECOGNITION STATE  ← INSERT HERE
+  // ==========================
+  let recognition = null;
   let isRecordingSpeech = false;
 
   // ==========================
@@ -115,9 +119,53 @@ document.addEventListener("DOMContentLoaded", () => {
   // MIC (UI-ONLY PLACEHOLDER)
   // ==========================
   function handleMicClick() {
-    isRecordingSpeech = !isRecordingSpeech;
-    micBtn.textContent = isRecordingSpeech ? "🎙 Listening..." : "🎙 Speak";
+  if (!recognition) {
+    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!window.SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    recognition = new window.SpeechRecognition();
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.lang = inputLangSelect.value; // important!
   }
+
+  if (!isRecordingSpeech) {
+    // START recording
+    isRecordingSpeech = true;
+    micBtn.textContent = "🛑 Stop";
+
+    recognition.start();
+
+    recognition.onresult = (event) => {
+      let transcript = event.results[0][0].transcript;
+      inputTextEl.value = transcript;
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error:", event.error);
+      isRecordingSpeech = false;
+      micBtn.textContent = "🎙 Speak";
+    };
+
+    recognition.onend = () => {
+      // if ending was not user-requested
+      if (isRecordingSpeech) {
+        recognition.start(); // restart for continuous mode
+      }
+    };
+
+  } else {
+    // STOP recording
+    isRecordingSpeech = false;
+    micBtn.textContent = "🎙 Speak";
+    recognition.stop();
+  }
+}
 
   // ==========================
   // EVENT LISTENERS
