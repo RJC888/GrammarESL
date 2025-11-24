@@ -1,3 +1,8 @@
 {
-  "type": "module"
+  "name": "grammar-esl",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "openai": "latest"
+  }
 }
