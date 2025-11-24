@@ -1,93 +1,92 @@
-console.log("🔥 RUNNING RAW-PCM WHISPER VERSION OF app.js");
-
+// app.js
 //--------------------------------------------------
-// DOM ELEMENTS
+// DOM Elements
 //--------------------------------------------------
-const inputEl = document.getElementById("inputText");
 const micBtn = document.getElementById("micBtn");
 const micStatus = document.getElementById("micStatus");
-const checkBtn = document.getElementById("checkBtn");
-const clearBtn = document.getElementById("clearBtn");
-const resultsEl = document.getElementById("results");
+const textInput = document.getElementById("textInput");
+const tierSelect = document.getElementById("tierSelect");
+const checkTextBtn = document.getElementById("checkTextBtn");
+const resultsPanel = document.getElementById("resultsPanel");
+const loadingIndicator = document.getElementById("loadingIndicator");
 
 //--------------------------------------------------
-// TIER SELECTION
+// State
 //--------------------------------------------------
-function getSelectedTier() {
-  const checked = document.querySelector('input[name="tier"]:checked');
-  return checked ? checked.value : "intermediate";
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+//--------------------------------------------------
+// Helper: set loading UI
+//--------------------------------------------------
+function setLoading(isLoading) {
+  if (!loadingIndicator) return;
+  loadingIndicator.style.display = isLoading ? "inline-block" : "none";
 }
 
 //--------------------------------------------------
-// RESULTS HANDLING
+// Helper: render AI result
 //--------------------------------------------------
 function setResultsHtml(html) {
-  resultsEl.innerHTML = html;
+  if (!resultsPanel) return;
+  resultsPanel.innerHTML = html;
 }
 
-function setLoading(isLoading) {
-  checkBtn.disabled = isLoading;
-  micBtn.disabled = isLoading;
-  checkBtn.textContent = isLoading ? "Checking..." : "✓ Check My Writing";
-}
-
-//--------------------------------------------------
-// MARKDOWN → SIMPLE HTML FORMATTER
-//--------------------------------------------------
+// Optional: simple formatter if you don't already have one
 function formatAIText(text) {
-  if (!text) return "<p>Empty response from server.</p>";
-
-  let html = text.trim();
-
-  // Bold syntax: **text**
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-
-  // Replace Markdown-style bullets with dot bullets
-  html = html.replace(/^\s*[-*]\s+/gm, "• ");
-
-  // Paragraphs: double newlines
-  html = html.replace(/\r\n/g, "\n"); // normalize
-  html = html.replace(/\n{2,}/g, "</p><p>");
-
-  // Single newlines → <br>
-  html = html.replace(/\n/g, "<br>");
-
-  return `<p>${html}</p>`;
+  if (!text) return "";
+  // Convert double newlines to paragraphs, single to <br>
+  const paragraphs = text.split(/\n{2,}/).map((p) =>
+    `<p>${p.replace(/\n/g, "<br>")}</p>`
+  );
+  return paragraphs.join("\n");
 }
 
 //--------------------------------------------------
-// CLEAR BUTTON
+// Helper: Blob → base64 (for sending audio to backend)
 //--------------------------------------------------
-clearBtn.addEventListener("click", () => {
-  inputEl.value = "";
-  setResultsHtml(`
-    <p class="placeholder">
-      Your feedback will appear here after you press
-      <strong>“Check My Writing”</strong>.
-    </p>
-  `);
-});
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      try {
+        const dataUrl = reader.result; // "data:audio/mp4;base64,AAAA..."
+        const base64 = String(dataUrl).split(",")[1];
+        resolve(base64);
+      } catch (e) {
+        reject(e);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
 
 //--------------------------------------------------
-// CHECK GRAMMAR — CALLS /api/grammar
+// Core: send data to /api/grammar
 //--------------------------------------------------
-checkBtn.addEventListener("click", async () => {
-  const text = inputEl.value.trim();
-
-  if (!text) {
-    setResultsHtml("<p>Please type or speak some English first. 😊</p>");
-    return;
-  }
-
-  const tier = getSelectedTier();
+async function sendToGrammarAPI({ text = "", audioBlob = null, mimeType, tier }) {
   setLoading(true);
-  setResultsHtml("<p>Checking your writing… ✍️</p>");
+  setResultsHtml(`<p>Analyzing your English... ⏳</p>`);
 
   try {
+    let payload = { tier };
+
+    if (text && text.trim()) {
+      payload.text = text.trim();
+    } else if (audioBlob) {
+      const audioBase64 = await blobToBase64(audioBlob);
+      payload.audioBase64 = audioBase64;
+      payload.mimeType = mimeType || "audio/mp4";
+    } else {
+      throw new Error("No text or audio to send.");
+    }
+
     const response = await fetch("/api/grammar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, tier }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -102,6 +101,16 @@ checkBtn.addEventListener("click", async () => {
     const data = await response.json();
     const formatted = formatAIText(data.text);
     setResultsHtml(formatted);
+
+    // Optionally show transcript under results if it came from audio
+    if (data.transcript) {
+      const transcriptHtml = `
+        <hr>
+        <p><strong>Transcribed Speech:</strong></p>
+        <p>${data.transcript}</p>
+      `;
+      setResultsHtml(formatted + transcriptHtml);
+    }
   } catch (err) {
     console.error("Grammar check failed:", err);
     setResultsHtml(`
@@ -111,231 +120,117 @@ checkBtn.addEventListener("click", async () => {
   } finally {
     setLoading(false);
   }
-});
-
-//--------------------------------------------------
-// WHISPER (Xenova Transformers.js) — SPEECH-TO-TEXT
-//--------------------------------------------------
-
-// State for Whisper (Transformers.js)
-let asrPipeline = null;
-let asrLoading = false;
-
-// RAW AUDIO CAPTURE STATE (no MediaRecorder)
-let audioContext = null;
-let mediaStream = null;
-let mediaSource = null;
-let processorNode = null;
-let isRecording = false;
-let recordedChunks = []; // array of Float32Array
-let recordedSampleRate = 16000;
-
-//--------------------------------------------------
-// LOAD WHISPER MODEL ONCE
-//--------------------------------------------------
-async function loadWhisperModelOnce() {
-  if (asrPipeline) return asrPipeline;
-  if (asrLoading) return null;
-
-  let pipeline = window.transformersPipeline;
-  let retries = 0;
-
-  while (!pipeline && retries < 50) {
-    await new Promise((r) => setTimeout(r, 100));
-    pipeline = window.transformersPipeline;
-    retries++;
-  }
-
-  if (!pipeline) {
-    console.error("❌ transformersPipeline not available on window");
-    micStatus.innerText = "⚠ Speech model unavailable";
-    return null;
-  }
-
-  try {
-    asrLoading = true;
-    micStatus.innerText = "⏳ Loading speech model…";
-    asrPipeline = await pipeline(
-      "automatic-speech-recognition",
-      "Xenova/whisper-base.en"
-    );
-    micStatus.innerText = "🎤 Ready to record";
-    return asrPipeline;
-  } catch (err) {
-    console.error("Error loading Whisper model:", err);
-    micStatus.innerText = "⚠ Error loading speech model";
-    return null;
-  } finally {
-    asrLoading = false;
-  }
-}
-
-window.addEventListener("load", () => {
-  loadWhisperModelOnce();
-});
-
-//--------------------------------------------------
-// UTIL — RESAMPLE TO 16kHz (simple, good enough)
-//--------------------------------------------------
-function resampleTo16k(input, inputSampleRate) {
-  const targetRate = 16000;
-  if (inputSampleRate === targetRate) {
-    return input;
-  }
-  const ratio = inputSampleRate / targetRate;
-  const newLength = Math.round(input.length / ratio);
-  const output = new Float32Array(newLength);
-  for (let i = 0; i < newLength; i++) {
-    output[i] = input[Math.floor(i * ratio)];
-  }
-  return output;
 }
 
 //--------------------------------------------------
-// START RAW-PCM CAPTURE (NO MEDIARECORDER)
+// Text-only flow: "Check My Writing" button
 //--------------------------------------------------
-async function startRawRecording() {
-  try {
-    recordedChunks = [];
+if (checkTextBtn) {
+  checkTextBtn.addEventListener("click", () => {
+    const text = textInput ? textInput.value : "";
+    const tier = tierSelect ? tierSelect.value : "A";
 
-    // 1. Make audio context
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    recordedSampleRate = audioContext.sampleRate;
-
-    // 2. Get mic stream
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaSource = audioContext.createMediaStreamSource(mediaStream);
-
-    // 3. Create ScriptProcessorNode to grab PCM chunks
-    // buffer size 4096, 1 input channel, 1 output channel
-    processorNode = audioContext.createScriptProcessor(4096, 1, 1);
-
-    processorNode.onaudioprocess = (event) => {
-      if (!isRecording) return;
-      const inputBuffer = event.inputBuffer;
-      const channelData = inputBuffer.getChannelData(0);
-
-      // Copy data out so we don't hold onto AudioBuffer internals
-      const chunk = new Float32Array(channelData.length);
-      chunk.set(channelData);
-      recordedChunks.push(chunk);
-    };
-
-    // 4. Connect graph
-    mediaSource.connect(processorNode);
-    // Some browsers require processor to connect to destination to run
-    processorNode.connect(audioContext.destination);
-
-    isRecording = true;
-    micBtn.innerText = "⏸️";
-    micStatus.innerText = "🎙 Recording… tap again to stop";
-  } catch (err) {
-    console.error("Error starting raw recording:", err);
-    micStatus.innerText = "⚠️ Mic permission or audio error";
-  }
-}
-
-//--------------------------------------------------
-// STOP RAW-PCM CAPTURE, BUILD FLOAT32, RUN WHISPER
-//--------------------------------------------------
-async function stopRawRecordingAndTranscribe() {
-  try {
-    isRecording = false;
-
-    if (processorNode) {
-      processorNode.disconnect();
-      processorNode.onaudioprocess = null;
-    }
-    if (mediaSource) {
-      mediaSource.disconnect();
-    }
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((t) => t.stop());
-    }
-
-    if (audioContext) {
-      try {
-        await audioContext.close();
-      } catch (e) {
-        console.warn("Error closing audioContext:", e);
-      }
-    }
-
-    micStatus.innerText = "⏳ Processing speech…";
-
-    // Join all chunks into one big Float32Array
-    let totalLength = 0;
-    for (const chunk of recordedChunks) {
-      totalLength += chunk.length;
-    }
-    const fullPcm = new Float32Array(totalLength);
-    let offset = 0;
-    for (const chunk of recordedChunks) {
-      fullPcm.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    if (fullPcm.length === 0) {
-      micStatus.innerText = "⚠️ No audio captured";
+    if (!text || !text.trim()) {
+      setResultsHtml(`<p>Please type something first. ✏️</p>`);
       return;
     }
 
-    // Resample to 16kHz for Whisper
-    const resampled = resampleTo16k(fullPcm, recordedSampleRate);
+    sendToGrammarAPI({ text, tier });
+  });
+}
 
-    // Make sure Whisper is ready
-    if (!asrPipeline) {
-      await loadWhisperModelOnce();
-      if (!asrPipeline) {
-        micStatus.innerText = "⚠️ Speech model unavailable";
-        return;
+//--------------------------------------------------
+// Microphone flow: record → send audio to backend
+//--------------------------------------------------
+async function startRecording() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setResultsHtml(`<p>Your browser does not support microphone recording.</p>`);
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    // Try formats in order: webm (Chrome) → mp4 (Safari)
+    let chosenMime = "";
+    if (typeof MediaRecorder !== "undefined") {
+      if (MediaRecorder.isTypeSupported("audio/webm")) {
+        chosenMime = "audio/webm";
+      } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+        chosenMime = "audio/mp4";
+      } else {
+        chosenMime = "";
       }
     }
 
-    // Run Whisper on raw PCM
-    const result = await asrPipeline({
-      audio: resampled,
-      sampling_rate: 16000,
-    });
+    const options = chosenMime ? { mimeType: chosenMime } : undefined;
+    mediaRecorder = new MediaRecorder(stream, options);
 
-    const transcriptText =
-      (result && result.text) ||
-      (Array.isArray(result) && result[0] && result[0].text) ||
-      "";
+    audioChunks = [];
 
-    const cleanTranscript = transcriptText.trim() || "[no speech recognized]";
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
 
-    // Append to text area
-    inputEl.value = (inputEl.value + "\n\n" + cleanTranscript).trim();
-    micStatus.innerText = "🎤 Ready";
+    mediaRecorder.onstop = async () => {
+      try {
+        const audioBlob = new Blob(audioChunks, {
+          type: chosenMime || "audio/mp4",
+        });
+        const tier = tierSelect ? tierSelect.value : "A";
+        await sendToGrammarAPI({
+          audioBlob,
+          mimeType: chosenMime || "audio/mp4",
+          tier,
+        });
+      } catch (err) {
+        console.error("Error handling recorded audio:", err);
+        setResultsHtml(`
+          <p>Sorry, there was a problem processing your recording.</p>
+          <p><small>${err.message}</small></p>
+        `);
+      } finally {
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+        isRecording = false;
+        if (micBtn) micBtn.textContent = "🎙 Start Speaking";
+        if (micStatus) micStatus.textContent = "";
+      }
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    if (micBtn) micBtn.textContent = "⏹ Stop Recording";
+    if (micStatus) micStatus.textContent = "Recording... Speak now.";
+
   } catch (err) {
-    console.error("Whisper recording error:", err);
-    micStatus.innerText = "⚠️ Mic error";
-  } finally {
-    // Reset references
-    audioContext = null;
-    mediaStream = null;
-    mediaSource = null;
-    processorNode = null;
-    recordedChunks = [];
+    console.error("Mic error:", err);
+    setResultsHtml(`
+      <p>Could not access the microphone.</p>
+      <p><small>${err.message}</small></p>
+    `);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    if (micStatus) micStatus.textContent = "Processing your recording...";
   }
 }
 
 //--------------------------------------------------
-// MIC BUTTON HANDLER — TOGGLE RECORD / TRANSCRIBE
+// Mic button wiring
 //--------------------------------------------------
-micBtn.onclick = async () => {
-  try {
+if (micBtn) {
+  micBtn.addEventListener("click", () => {
     if (!isRecording) {
-      // Start recording
-      await startRawRecording();
+      startRecording();
     } else {
-      // Stop and transcribe
-      micBtn.innerText = "🎤";
-      await stopRawRecordingAndTranscribe();
+      stopRecording();
     }
-  } catch (err) {
-    console.error("Whisper micBtn onclick error:", err);
-    micStatus.innerText = "⚠️ Mic error";
-  }
-};
+  });
+}
