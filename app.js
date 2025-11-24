@@ -115,10 +115,10 @@ document.addEventListener("DOMContentLoaded", () => {
     inputTextEl.focus();
   }
 
-  // ==========================
-  // MIC — REAL SPEECH RECOGNITION (Safari native)
-  // ==========================
-  function handleMicClick() {
+// ==========================
+// MIC — REAL SPEECH RECOGNITION (final corrected version)
+// ==========================
+function handleMicClick() {
   if (!recognition) {
     window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -131,32 +131,35 @@ document.addEventListener("DOMContentLoaded", () => {
     recognition.interimResults = true;
     recognition.continuous = true;
 
-    recognition.lang = inputLangSelect.value; // important!
+    recognition.lang = inputLangSelect.value;
   }
 
   if (!isRecordingSpeech) {
-    // START recording
+    // START RECORDING
     isRecordingSpeech = true;
     micBtn.textContent = "🛑 Stop";
+
+    // Preserve already typed or pasted text
+    finalText = inputTextEl.value.trim() + " ";
+    partialText = "";
 
     recognition.start();
 
     recognition.onresult = (event) => {
-  let transcript = event.results[0][0].transcript.trim();
+      let transcript = event.results[0][0].transcript.trim();
 
-  if (event.results[0].isFinal) {
-    // move temp into final
-    finalText += transcript + " ";
-    partialText = "";
+      if (event.results[0].isFinal) {
+        // Commit the final part
+        finalText += transcript + " ";
+        partialText = "";
+      } else {
+        // Display live partial speech
+        partialText = transcript + " ";
+      }
 
-  } else {
-    // update live preview
-    partialText = transcript;
-  }
-
-  inputTextEl.value = (finalText + partialText).trim() + " ";
-  inputTextEl.focus();
-};
+      // Update field
+      inputTextEl.value = finalText + partialText;
+    };
 
     recognition.onerror = (event) => {
       console.error("Speech recognition error:", event.error);
@@ -165,17 +168,19 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     recognition.onend = () => {
-      // if ending was not user-requested
       if (isRecordingSpeech) {
-        recognition.start(); // restart for continuous mode
+        recognition.start();
       }
     };
 
   } else {
-    // STOP recording
+    // STOP RECORDING
     isRecordingSpeech = false;
     micBtn.textContent = "🎙 Speak";
     recognition.stop();
+
+    // REMOVE partial text if any
+    inputTextEl.value = finalText.trim() + " ";
   }
 }
 
