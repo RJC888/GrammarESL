@@ -1,230 +1,147 @@
-/* Basic page layout */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
+/* ===========================
+   GLOBAL PAGE STYLING
+=========================== */
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f4f7fb;
-  color: #1f2933;
+  padding: 0;
+  background: #F7F7F7;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #2F2F2F;
 }
 
 .app-shell {
   max-width: 900px;
-  margin: 0 auto;
-  padding: 24px 16px 48px;
+  margin: auto;
+  padding: 20px;
 }
 
-/* Header */
+/* ===========================
+   HEADER
+=========================== */
 .app-header {
   text-align: center;
-  margin-bottom: 24px;
+  padding: 25px 0;
 }
 
 .app-header h1 {
-  margin: 0 0 4px;
-  font-size: 1.8rem;
-  color: #114a9b;
+  margin: 0;
+  font-weight: 600;
+  color: #333;
+  font-size: 30px;
 }
 
 .subtitle {
-  margin: 0;
-  font-size: 0.95rem;
-  color: #5b6b82;
+  margin-top: 4px;
+  font-size: 16px;
+  color: #555;
 }
 
-/* Cards */
-.card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 16px 18px 18px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+/* ===========================
+   INPUT TEXT AREA
+=========================== */
+.input-box {
+  width: 100%;
+  height: 180px;
+  font-size: 17px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #CCC;
+  box-sizing: border-box;
+  resize: vertical;
+  margin-bottom: 18px;
+  background: #FFF;
+}
+
+/* ===========================
+   3-COLUMN CONTROL BAR
+=========================== */
+.control-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
   margin-bottom: 18px;
 }
 
-.results-card {
-  margin-top: 14px;
-}
-
-.results-title {
-  margin: 0 0 10px;
-  font-size: 1.1rem;
-  color: #1f2933;
-}
-
-/* Fields */
-.field-label {
+.control-col label {
   display: block;
-  margin-bottom: 6px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: #334e68;
-}
-
-.text-input {
-  width: 100%;
-  border-radius: 12px;
-  border: 1px solid #cbd2e1;
-  padding: 10px 12px;
-  font-size: 0.95rem;
-  resize: vertical;
-  min-height: 120px;
-}
-
-.text-input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
-}
-
-/* Buttons */
-.btn {
-  border: none;
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition:
-    background 0.18s ease,
-    transform 0.08s ease,
-    box-shadow 0.18s ease;
-}
-
-.btn:active {
-  transform: translateY(1px);
-  box-shadow: none;
-}
-
-.primary-btn {
-  background: #2563eb;
-  color: #ffffff;
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.35);
-}
-
-.primary-btn:hover {
-  background: #1d4ed8;
-}
-
-.secondary-btn {
-  background: #e5edf8;
-  color: #1f3b79;
-  box-shadow: none;
-}
-
-.secondary-btn:hover {
-  background: #d6e3f7;
-}
-
-/* Mic button */
-.mic-btn {
-  background: #0f766e;
-  color: #ffffff;
-  padding-inline: 14px;
-  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.35);
-}
-
-.mic-btn:hover {
-  background: #0b5f58;
-}
-
-/* Toolbars & rows */
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.status-label {
-  font-size: 0.8rem;
-  color: #526375;
-}
-
-/* Tier row */
-.tier-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  margin-top: 12px;
+  font-size: 14px;
+  color: #555;
   margin-bottom: 4px;
 }
 
-.tier-option {
+.control-col select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 15px;
+  border-radius: 8px;
+  border: 1px solid #CCC;
+  background: #FFF;
+}
+
+/* ===========================
+   BUTTONS
+=========================== */
+.action-row {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.85rem;
-  color: #1f2933;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
-/* Actions */
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
+.btn {
+  flex: 1;
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 25px;
+  border: none;
+  cursor: pointer;
+  background: #E0E0E0;
+  transition: background 0.15s ease;
 }
 
-/* Results area */
-.results {
-  min-height: 80px;
-  font-size: 0.93rem;
-  line-height: 1.4;
-  color: #1f2933;
+.btn:hover {
+  background: #D4D4D4;
 }
 
-.results p {
-  margin: 0.3em 0;
+.primary-btn {
+  background: #3D8BFF;
+  color: white;
+  font-weight: 500;
 }
 
-.results strong {
-  font-weight: 700;
+.primary-btn:hover {
+  background: #2F6FCC;
+}
+
+/* ===========================
+   OUTPUT BOX
+=========================== */
+.output-box {
+  width: 100%;
+  min-height: 200px;
+  background: #FFF;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #CCC;
+  font-size: 17px;
+  line-height: 1.45;
+  box-sizing: border-box;
 }
 
 .placeholder {
-  margin: 4px 0 0;
-  color: #7b8794;
-  font-size: 0.9rem;
+  color: #888;
 }
 
-/* Small screens */
-@media (max-width: 640px) {
-  .app-shell {
-    padding-inline: 12px;
+/* ===========================
+   MOBILE OPTIMIZATION
+=========================== */
+@media (max-width: 700px) {
+  .control-row {
+    grid-template-columns: 1fr;
   }
-
-  .app-header h1 {
-    font-size: 1.4rem;
+  .btn {
+    font-size: 14px;
   }
-
-  .tier-row {
-    align-items: flex-start;
+  .input-box {
+    height: 150px;
   }
-  .mic-circle {
-  width: 64px;
-  height: 64px;
-  font-size: 28px;
-  border-radius: 50%;
-  border: none;
-  background-color: #d73c3c;
-  color: white;
-  cursor: pointer;
-  transition: transform 0.1s ease;
 }
-
-.mic-circle:active {
-  transform: scale(0.95);
-}
-
-.mic-circle.listening {
-  background-color: #2c8dfc;
-}
-
