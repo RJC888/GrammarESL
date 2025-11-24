@@ -73,7 +73,7 @@ TIER RULES:
 ${tierText}
 
 Formatting required:
-1) Start with one short praise sentence.
+1) Start with one short praise sentence in ${explanationLanguage}
 2) Then: "Corrected:" (in ${inputLanguage}) followed by corrected version.
 3) Then: "Explanation:" in ${explanationLanguage}
 4) End with short encouragement in ${explanationLanguage}
