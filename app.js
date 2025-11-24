@@ -1,132 +1,182 @@
-//--------------------------------------------------
-// DOM Elements
-//--------------------------------------------------
-const micBtn = document.getElementById("micBtn");
-const micStatus = document.getElementById("micStatus");
-const textInput = document.getElementById("inputText");
-const checkTextBtn = document.getElementById("checkBtn");
-const clearBtn = document.getElementById("clearBtn");
-const resultsPanel = document.getElementById("results");
+// app.js
+// Front-end logic for Grammar Coach
+// -------------------------------------------------
 
-//--------------------------------------------------
-// Browser Speech Recognition
-//--------------------------------------------------
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
+"use strict";
 
-if (SpeechRecognition) {
-  recognition = new SpeechRecognition();
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
+document.addEventListener("DOMContentLoaded", () => {
+  //--------------------------------------------------
+  // DOM ELEMENTS
+  //--------------------------------------------------
+  const inputTextEl = document.getElementById("inputText");
+  const micBtn = document.getElementById("micBtn");
+  const micStatusEl = document.getElementById("micStatus");
+  const nativeLanguageSelect = document.getElementById("nativeLanguage");
+  const statusMessageEl = document.getElementById("statusMessage");
+  const resultsEl = document.getElementById("results");
+  const checkBtn = document.getElementById("checkBtn");
+  const clearBtn = document.getElementById("clearBtn");
 
-  recognition.onstart = () => {
-    micStatus.textContent = "Listening...";
-    micBtn.textContent = "⏹ Stop";
-  };
+  //--------------------------------------------------
+  // STATE
+  //--------------------------------------------------
+  let isRecording = false; // planned for future voice input
 
-  recognition.onend = () => {
-    micStatus.textContent = "Mic: off";
-    micBtn.textContent = "🎤 Tap to Speak";
-  };
+  //--------------------------------------------------
+  // HELPERS
+  //--------------------------------------------------
 
-  recognition.onerror = (event) => {
-    console.error("Speech recognition error:", event.error);
-    setResultsHtml(`<p>Speech recognition error: ${event.error}</p>`);
-  };
+  function getSelectedRadio(name, defaultValue) {
+    const radios = document.querySelectorAll(`input[name="${name}"]`);
+    for (const r of radios) {
+      if (r.checked) return r.value;
+    }
+    return defaultValue;
+  }
 
-  recognition.onresult = (event) => {
-    const spokenText = event.results[0][0].transcript;
-    textInput.value = spokenText;
-    console.log("Recognized:", spokenText);
+  function setStatus(message, type = "info") {
+    if (!statusMessageEl) return;
 
-    // Immediately send to backend for grammar analysis
-    sendTextToGrammar();
-  };
-} else {
-  micStatus.textContent = "Speech recognition not supported";
-  micBtn.disabled = true;
-}
+    statusMessageEl.textContent = message || "";
+    statusMessageEl.classList.remove("status-info", "status-error", "status-success");
 
-//--------------------------------------------------
-// Helper: set results HTML
-//--------------------------------------------------
-function setResultsHtml(html) {
-  resultsPanel.innerHTML = html;
-}
+    if (type === "error") {
+      statusMessageEl.classList.add("status-error");
+    } else if (type === "success") {
+      statusMessageEl.classList.add("status-success");
+    } else {
+      statusMessageEl.classList.add("status-info");
+    }
+  }
 
-//--------------------------------------------------
-// Grammar send function (text only)
-//--------------------------------------------------
-async function sendTextToGrammar() {
-  setResultsHtml(`<p>Analyzing your English... ⏳</p>`);
+  function setResults(markup) {
+    if (!resultsEl) return;
+    if (!markup) {
+      resultsEl.innerHTML =
+        '<p class="placeholder">Your friendly grammar coach feedback will appear here.</p>';
+      return;
+    }
+    resultsEl.innerHTML = markup;
+  }
 
-  try {
-    const tier = getSelectedTier();
-    const text = textInput.value.trim();
+  //--------------------------------------------------
+  // MAIN ACTION: CHECK TEXT
+  //--------------------------------------------------
 
-    const response = await fetch("/api/grammar", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ text, tier }),
+  async function handleCheckClick() {
+    const text = (inputTextEl.value || "").trim();
+
+    if (!text) {
+      setStatus("Type something first!", "error");
+      return;
+    }
+
+    const tier = getSelectedRadio("tier", "simple");
+    const focus = getSelectedRadio("focus", "grammar");
+    const nativeLanguage = nativeLanguageSelect.value || "English";
+
+    const payload = {
+      text,
+      tier,
+      focus,
+      nativeLanguage,
+      source: "text",
+    };
+
+    try {
+      setStatus("Getting feedback from Grammar Coach…", "info");
+      setResults('<p class="placeholder">Analyzing… ⏳</p>');
+
+      const response = await fetch("/api/grammar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Backend error:", errorText);
+        throw new Error("The grammar coach had a problem responding.");
+      }
+
+      const data = await response.json();
+      const feedback = data.feedback || "(No feedback returned.)";
+
+      setStatus("Done. See feedback below.", "success");
+
+      const html = `<pre class="feedback-text">${escapeHtml(feedback)}</pre>`;
+      setResults(html);
+    } catch (err) {
+      console.error("Grammar check error:", err);
+      setStatus(
+        "Sorry — something went wrong. Check your network connection and try again.",
+        "error"
+      );
+      setResults("");
+    }
+  }
+
+  //--------------------------------------------------
+  // CLEAR BUTTON
+  //--------------------------------------------------
+
+  function handleClearClick() {
+    inputTextEl.value = "";
+    setStatus("");
+    setResults("");
+    inputTextEl.focus();
+  }
+
+  //--------------------------------------------------
+  // MIC BUTTON (STUB ONLY)
+  //--------------------------------------------------
+
+  function handleMicClick() {
+    isRecording = !isRecording;
+    if (isRecording) {
+      micStatusEl.textContent = "Mic feature coming soon — please type for now.";
+    } else {
+      micStatusEl.textContent = "Mic off";
+    }
+  }
+
+  //--------------------------------------------------
+  // UTILITY: ESCAPE HTML
+  //--------------------------------------------------
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  //--------------------------------------------------
+  // EVENT LISTENERS
+  //--------------------------------------------------
+
+  if (checkBtn) {
+    checkBtn.addEventListener("click", handleCheckClick);
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", handleClearClick);
+  }
+
+  if (micBtn) {
+    micBtn.addEventListener("click", handleMicClick);
+  }
+
+  if (inputTextEl) {
+    inputTextEl.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleCheckClick();
+      }
     });
-
-    const data = await response.json();
-    const formatted = formatAIText(data.text);
-    setResultsHtml(formatted);
-
-  } catch (err) {
-    setResultsHtml(`<p>Sorry, something went wrong.</p>
-    <p><small>${err.message}</small></p>`);
   }
-}
 
-//--------------------------------------------------
-// Helper: tier selection
-//--------------------------------------------------
-function getSelectedTier() {
-  const radios = document.querySelectorAll("input[name='tier']");
-  for (let r of radios) {
-    if (r.checked) return r.value;
-  }
-  return "intermediate";
-}
-
-//--------------------------------------------------
-// Helper: format AI text
-//--------------------------------------------------
-function formatAIText(text) {
-  if (!text) return "";
-  const paragraphs = text.split(/\n{2,}/).map((p) =>
-    `<p>${p.replace(/\n/g, "<br>")}</p>`
-  );
-  return paragraphs.join("\n");
-}
-
-//--------------------------------------------------
-// Button: manual "Check My Writing"
-//--------------------------------------------------
-checkTextBtn.addEventListener("click", sendTextToGrammar);
-
-//--------------------------------------------------
-// Button: Clear
-//--------------------------------------------------
-clearBtn.addEventListener("click", () => {
-  textInput.value = "";
-  setResultsHtml(`<p class="placeholder">
-    Your feedback will appear here after you press <strong>“Check My Writing”</strong>.
-  </p>`);
-});
-
-//--------------------------------------------------
-// Mic Button
-//--------------------------------------------------
-micBtn.addEventListener("click", () => {
-  if (!recognition) return;
-
-  if (micBtn.textContent.includes("Tap")) {
-    recognition.start();
-  } else {
-    recognition.stop();
-  }
+  setResults(""); // initialize
 });
