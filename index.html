@@ -2,103 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>ESL Grammar & Speaking Coach</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grammar Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Keep or update this link to your existing CSS -->
   <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
   <div class="app-shell">
-    <header class="app-header">
-      <h1>ESL Grammar & Speaking Coach</h1>
-      <p class="subtitle">
-        Speak or type your English. Choose your help level. Get friendly feedback.
-      </p>
-    </header>
+  <header class="app-header">
+  <h1>Grammar Coach</h1>
+  <p class="subtitle">Fix Grammar Mistakes Easily</p>
+</header>
 
     <main class="app-main">
+      <!-- 1. INPUT AREA -------------------------------------------------->
+      <section class="card">
+        <h2>1. Your English</h2>
 
-        <!-- Tier selection -->
+        <div class="input-mode-row">
+          <span class="field-label">Input:</span>
+          <label class="mode-option">
+            <input type="radio" name="inputMode" value="text" checked />
+            Type
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="inputMode" value="speech" />
+            Speak (coming soon)
+          </label>
+        </div>
+
+        <textarea
+          id="inputText"
+          rows="5"
+          placeholder="Type a sentence or short paragraph your students might say or write..."
+        ></textarea>
+
+        <div class="mic-row">
+          <button id="micBtn" class="btn icon-btn" type="button">
+            🎙
+          </button>
+          <span id="micStatus" class="status-label">Mic off (stubbed for now)</span>
+        </div>
+      </section>
+
+      <!-- 2. SETTINGS ---------------------------------------------------->
+      <section class="card">
+        <h2>2. Settings</h2>
+
+        <!-- Help level (tier) -->
         <div class="tier-row">
           <span class="field-label">Help level:</span>
+
           <label class="tier-option">
-            <input type="radio" name="tier" value="simple" />
+            <input type="radio" name="tier" value="simple" checked />
             Simple
           </label>
+
           <label class="tier-option">
-            <input type="radio" name="tier" value="intermediate" checked />
-            Intermediate
+            <input type="radio" name="tier" value="standard" />
+            Standard
           </label>
+
           <label class="tier-option">
             <input type="radio" name="tier" value="advanced" />
             Advanced
           </label>
         </div>
 
+        <!-- Focus of feedback -->
+        <div class="focus-row">
+          <span class="field-label">Focus:</span>
+
+          <label class="tier-option">
+            <input type="radio" name="focus" value="grammar" checked />
+            Grammar only
+          </label>
+
+          <label class="tier-option">
+            <input type="radio" name="focus" value="grammar_fluency" />
+            Grammar + Fluency
+          </label>
+
+          <label class="tier-option">
+            <input type="radio" name="focus" value="rewrite" />
+            Rewrite as a model
+          </label>
+        </div>
+
+        <!-- Native language for explanations -->
+        <div class="lang-row">
+          <span class="field-label">Explain also in:</span>
+          <select id="nativeLanguage">
+            <option value="English" selected>English only</option>
+            <option value="Spanish">Spanish</option>
+             <option value="Catalan">Catalan</option>
+            <option value="Portuguese">Portuguese</option>
+            <option value="Chinese">Chinese</option>
+            <option value="French">French</option>
+          </select>
+        </div>
+
+        <!-- Actions -->
         <div class="actions">
-          <button id="checkBtn" class="btn primary-btn">
-            ✓ Check My Writing
+          <button id="checkBtn" class="btn primary-btn" type="button">
+            ✓ Check My English
           </button>
-          <button id="clearBtn" class="btn secondary-btn">
+          <button id="clearBtn" class="btn secondary-btn" type="button">
             Clear
           </button>
         </div>
+
+        <p id="statusMessage" class="status-message"></p>
       </section>
 
-      <!-- Results Area -->
-     <section class="card">
-
-  <!-- INPUT LANGUAGE -->
-  <div class="lang-row">
-    <span class="field-label">Input Language:</span>
-    <label><input type="radio" name="inputLang" value="en" checked /> English</label>
-    <label><input type="radio" name="inputLang" value="es" /> Spanish</label>
+      <!-- 3. RESULTS ----------------------------------------------------->
+      <section class="card">
+        <h2>3. Coach Feedback</h2>
+        <div id="results" class="results-box">
+          <p class="placeholder">
+            Your friendly grammar coach feedback will appear here.
+          </p>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <!-- CORRECTION LANGUAGE -->
-  <div class="lang-row">
-    <span class="field-label">Correction Language:</span>
-    <label><input type="radio" name="corrLang" value="en" checked /> English</label>
-    <label><input type="radio" name="corrLang" value="es" /> Spanish</label>
-  </div>
-
-  <!-- EXPLANATION LANGUAGE -->
-  <div class="lang-row">
-    <span class="field-label">Explanation Language:</span>
-    <label><input type="radio" name="exLang" value="en" checked /> English</label>
-    <label><input type="radio" name="exLang" value="es" /> Spanish</label>
-  </div>
-
-  <!-- HELP LEVEL -->
-  <div class="tier-row">
-    <span class="field-label">Help level:</span>
-    <label><input type="radio" name="tier" value="simple" /> Simple</label>
-    <label><input type="radio" name="tier" value="intermediate" checked /> Intermediate</label>
-    <label><input type="radio" name="tier" value="advanced" /> Advanced</label>
-  </div>
-
-  <!-- TEXT INPUT -->
-  <label for="inputText" class="field-label">Your text</label>
-  <textarea id="inputText" class="text-input" rows="5"
-    placeholder="Type here or tap the mic and speak..."></textarea>
-
-  <!-- BIG MIC BUTTON -->
-  <div class="toolbar">
-    <button id="micBtn" class="mic-circle">
-      🎤
-    </button>
-    <span id="micStatus" class="status-label">Mic: off</span>
-  </div>
-
-  <!-- ACTION BUTTONS -->
-  <div class="actions">
-    <button id="checkBtn" class="btn primary-btn">✓ Check My Writing</button>
-    <button id="clearBtn" class="btn secondary-btn">Clear</button>
-  </div>
-
-</section>
-
-  <!-- Main App Logic -->
   <script src="app.js"></script>
 </body>
 </html>
